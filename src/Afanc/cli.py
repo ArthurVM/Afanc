@@ -1,10 +1,8 @@
 #! /usr/bin/env python3
-
 """
 Command line interface for Afanc metagenomics disambiguator.
 """
 import sys
-from __future__ import print_function
 
 from Afanc.parser import base_parser, initLogFiles
 
