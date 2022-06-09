@@ -78,7 +78,7 @@ parser_screen = subparsers.add_parser(
 parser_screen.add_argument('database',
     type=isDir,
     action='store',
-    help='Path to the results directory created by running autodatabase. If fetch_assemblies is provided, this should just be the path to a Kraken2 database.')
+    help='Path to the results directory created by running autodatabase.')
 
 parser_screen.add_argument('fastq',
     type=isFile,

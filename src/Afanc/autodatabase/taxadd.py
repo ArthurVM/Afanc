@@ -38,7 +38,7 @@ def editFasta(infasta, outdir, taxname, names):
     if taxid == None:
         return 1
 
-    # edit the headers in each fasta file
+    # edit the headers in each fasta file then output with the taxID
     with open(infasta) as file:
          fastData = file.read()
          fastEdit = re.sub(r"(>.+)",r"\1|kraken:taxid|{0}".format(taxid), fastData)
