@@ -25,7 +25,7 @@ def runAutoDB(args):
     ## construct root directory to deposit results
     mkchdir(args.autoDB_WDir)
 
-    fasta_db_path = "/home/amorris/BioInf/Afanc_autodb/assemblyDB/"
+    fasta_db_path = args.fastaDir
 
     ## download ncbi taxonomy and preprocess fastas
     fasta_dict = preprocessing(args, fasta_db_path)
@@ -47,6 +47,8 @@ def runAutoDB(args):
 
 
 def preprocessing(args, fasta_db_path):
+    """ Download NCBI taxonomy and add taxa to nodes and names files
+    """
 
     from Afanc.autodatabase.prepareNewFasta import getTaxonomy
     from Afanc.autodatabase.taxadd import taxadd_Main
@@ -75,7 +77,10 @@ def preprocessing(args, fasta_db_path):
 
 
 def assemblyQC(args, fasta_dict):
+    """ Perform QC on assemblies using MASH then move high quality assemblies to the cleanFasta directory
+    """
     from Afanc.autodatabase.assemblyQC import mash, buildMatrix, fastaMove
+    from Afanc.autodatabase.makeFastaDirJSON import make_fasta_dir_JSON
 
     subprocessID = "QC"
     vprint(
@@ -86,7 +91,14 @@ def assemblyQC(args, fasta_dict):
 
     ## construct a taxa dict where keys are the taxonID, and values a list containing paths to all fastas in that taxon
     taxa_dict = defaultdict(list)
-    for fasta in listdir(args.fasta_WDir):
+    input_fasta_list = listdir(args.fasta_WDir)
+
+    print(f"{len(input_fasta_list)} assemblies found in {args.fastaDir}")
+
+    ## make the species name fasta file json
+    make_fasta_dir_JSON(args.fastaDir)
+
+    for fasta in input_fasta_list:
         taxon_id = fasta.split("_")[0]
         fasta_path = path.join(args.fasta_WDir, fasta)
         taxa_dict[taxon_id].append(fasta_path)
@@ -101,10 +113,10 @@ def assemblyQC(args, fasta_dict):
         chdir(args.mash_WDir)
         mashdist_out = mash(args, taxon_id, fastas)
 
-        ## select the best assembly using minhash distance
         chdir(args.qc_WDir)
+
         ## range to take around the mode of the average mash distance, default is 10%
-        modeRange = 0.1
+        modeRange = args.mode_range
 
         calcArray, tax, modeVal = buildMatrix(args, mashdist_out)
 
@@ -112,6 +124,7 @@ def assemblyQC(args, fasta_dict):
         if calcArray is None:
             continue
 
+        ## select the best assembly using minhash distance
         fastaMove(args, calcArray, tax, modeVal, modeRange)
 
     chdir(args.autoDB_WDir)

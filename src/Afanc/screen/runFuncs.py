@@ -14,11 +14,8 @@ def runScreen(args):
     ## generate the working directory structure for this run
     genScreenDirStructure(args)
 
-    ## deal with databases
-    if not args.fetch_assemblies:
-        checkautodbWD(args)
-    else:
-        args.k2_database = args.database
+    ## check if database is malformed
+    checkautodbWD(args)
 
     ## screen with kraken2
     runKraken2(args)
@@ -64,7 +61,7 @@ def getHits(args):
     """ parses the kraken2 report and then gets assemblies pertaining to identified species
     """
     from Afanc.screen.report.parseK2report import parseK2reportMain
-    from Afanc.screen.getGenomes import getAccessions, getGenomesbyAcc, getLocalGenomes
+    from Afanc.screen.getGenomes import getAccessions, getGenomesbyAcc, getGenomesbyName, getLocalGenomes, get_hitIDs
     from Afanc.utilities.generalUtils import gendbdict
 
     ## generate the taxID database dictionary from the autodatabase cleanFasta directory
@@ -72,13 +69,17 @@ def getHits(args):
 
     ## parse kraken2 report
     chdir(args.reportsDir)
-    parseK2reportMain(args)
-    accessions = getAccessions(f"{args.reportsDir}/{args.output_prefix}.k2.json", dbdict)
+    out_json = parseK2reportMain(args, dbdict)
 
     chdir(args.bt2WDir)
 
+    ## GET GENOMES BRANCH
+    ## branch for dealing with how hit genomes are fetched: local using the autodb results dir,
+    ## or from genbank using the ensembl suite
+
     if args.fetch_assemblies:
         ## download hits from Genbank
+        ## TODO : this branch is broken and results in a malformed results JSON
         subprocessID="DOWNLOADING_HITS"
 
         vprint(
@@ -86,9 +87,12 @@ def getHits(args):
             "Downloading assemblies from Genbank...",
             "prYellow",
         )
-        stdout, stderr = getGenomesbyAcc(accessions)
+        assembly_ids = get_hitIDs(out_json)
+        assembly_dict = getGenomesbyName(assembly_ids, args)
+
     else:
         ## get genomes from autodatabase results directory: /selectFasta_autoDatabase_cleanFasta/
+        ## TODO : this branch is broken due to inconsistent ncbi_taxID usage
         subprocessID="GET_HITS"
 
         vprint(
@@ -96,10 +100,7 @@ def getHits(args):
             "Getting assemblies from local autodatabase directory...",
             "prYellow",
         )
-        stdout, stderr = getLocalGenomes(accessions, args.cleanFasta)
-
-    print(f"GETGENOMES\n {stdout}\n", file=args.stdout, flush=True)
-    print(f"GETGENOMES\n {stderr}\n", file=args.stderr, flush=True)
+        getLocalGenomes(out_json, args)
 
     chdir(args.runWDir)
 
@@ -203,6 +204,12 @@ def map2Hits(args):
     chdir(args.runWDir)
 
 
+import pysam
+from os import chdir, path, listdir, mkdir
+from collections import defaultdict
+
+from Afanc.utilities.generalUtils import vprint
+
 def makeFinalReport(args):
     """ make final report from the kraken2 and bowtie2 reports
     """
@@ -227,37 +234,37 @@ def makeFinalReport(args):
         "output_prefix" : args.output_prefix,
     }
 
-    reportsbox = [g for g in listdir(args.reportsDir) if g.endswith("json")]
+    ## collect k2 json reports
+    reportsbox = [g for g in listdir(args.reportsDir) if g.endswith("mapstats.json")]
 
     with open(f"{args.reportsDir}/{args.output_prefix}.k2.json", 'r') as k2fin:
         k2data = json.load(k2fin)
 
-        for field, values in k2data.items():
+        for event in k2data["Detection_events"]:
+            for report in reportsbox:
+                if str(event['taxon_id']) in report:
+                    report_json = report
 
-            if field == "Thresholds":
-                continue
+            with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:      ## TODO: sort out this line to make it more robust, i.e. remove _genomic
+                bt2data = json.load(bt2fin)
 
-            ## check to see if a hit has an accession
-            for clade in values:
-                if clade["accession"] != "NA":
+                ## add fields to json dict
+                ## if there is a likely variant, add to that subdict
+                if "most_likely_variant" in event:
+                    event["most_likely_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                    event["most_likely_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                    event["most_likely_variant"]["gini"] = bt2data["map_data"]["gini"]
+                ## otherwise add to the base dict
+                else:
+                    event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                    event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                    event["gini"] = bt2data["map_data"]["gini"]
 
-                    ## find report for this accession
-                    for report in reportsbox:
-                        if clade['accession'] in report:
-                            report_json = report
+                ## initialise dictionary key
+                if "Detection_events" not in datadict:
+                    datadict["Detection_events"] = []
 
-                    with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:      ## TODO: sort out this line to make it more robust, i.e. remove _genomic
-                        bt2data = json.load(bt2fin)
-
-                        ## add fields to json dict
-                        clade["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                        clade["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                        clade["gini"] = bt2data["map_data"]["gini"]
-
-                        if field not in datadict:
-                            datadict[field] = []
-
-                        datadict[field].append(clade)
+                datadict["Detection_events"].append(event)
 
     with open(f"./{args.output_prefix}.json", "w") as fout:
         json.dump(jsondict, fout, indent = 4)

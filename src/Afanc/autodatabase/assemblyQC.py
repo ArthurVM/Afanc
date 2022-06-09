@@ -81,6 +81,8 @@ def buildMatrix(args, inMash):
 
 
 def fastaMove(args, calcArray, tax, modeVal, modeRange):
+    """ Move high quality assemblies to the cleanFasta directory
+    """
 
     # get range around the mode
     percentRange = float(modeRange) * modeVal

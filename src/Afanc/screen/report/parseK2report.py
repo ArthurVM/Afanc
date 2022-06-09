@@ -1,88 +1,229 @@
 import json
-from os import path
 from collections import defaultdict
+from os import path
 
-from Afanc.accdict import dbdict
+from Afanc.utilities.generalUtils import gendbdict
 
-
-class Taxa(object):
-    """docstring for Taxa."""
-
-    def __init__(self, line):
-        super(Taxa, self).__init__()
+class Tree(object):
+    'Tree node.'
+    def __init__(self, line, name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID, children=None, parent=None):
 
         self.line = line
 
-    def parseLine(self):
-        """ parses a kraken2 report line
-        """
-        sline = self.line.strip("\n").split('\t')
-
-        if len(sline) < 5:
-            return []
-        try:
-            int(sline[1])
-        except ValueError:
-            return []
-
-        #Extract relevant information
-        perc = float(sline[0])
-        clade_reads =  int(sline[1])
-        taxa_reads = int(sline[2])
-        taxa_level = sline[-3]
-        ncbitaxID = sline[-2]
-
-        #Get name and spaces
-        spaces = 0
-        name = sline[-1]
-        for char in name:
-            if char == ' ':
-                name = name[1:]
-                spaces += 1
-            else:
-                break
-
-        #Determine which level based on number of spaces
-        level_int = int(spaces/2)
-
+        ## initialise empty attributes
         self.name = name
-        self.level_int = spaces
-        self.clade_perc = perc
+        self.level_int = level_int
+        self.clade_perc = clade_perc
         self.clade_reads = clade_reads
         self.taxa_reads = taxa_reads
         self.taxa_level = taxa_level
-        self.ncbi_taxID = ncbitaxID
+        self.ncbi_taxID = ncbi_taxID
 
-    def makeJsonLine(self):
-        """ generate a JSON output field
+        ## parent-child structure
+        self.children = []
+        self.parent = parent
+
+        if children is not None:
+            for child in children:
+                self.add_child(child)
+
+    def add_child(self, node):
+        assert isinstance(node,Tree)
+        self.children.append(node)
+
+    def makeJsonLine(self, dbdict):
+        """ generate a JSON output field for a node
         """
         if self.ncbi_taxID in dbdict:
             acc = dbdict[self.ncbi_taxID][1]
         else: acc = "NA"
 
-        return { "reads" : self.taxa_reads, "percentage" : self.clade_perc, "name" : self.name, "taxon_id" : self.ncbi_taxID, "accession" : acc }
+        json_data = { "name" : self.name, "reads" : self.taxa_reads, "percentage" : self.clade_perc, "taxon_id" : self.ncbi_taxID, "accession" : acc }
+
+        return json_data
+
+    def find_local_max(self, local_threshold, return_all_nodes=False):
+        """ Finds the local maximum scoring tip node. Takes a branch node which is assumed to be the lowest level node
+        which weights higher than some threshold (clade percentage threshold), and returns the tip node (not necessarily
+        the lowest level node) with the highest score.
+
+        e.g.
+                N  -  -  -  -  -  0
+              /   \
+             n0   n1  -  -  -  -  1
+            /  \    \
+           n2  n3   n4   -  -  -  2
+          /  \        \
+         n5  n6       n7 -  -  -  3
+
+        where N is the lowest level node for which N.clade_perc >= pct_threshold. The most likely lowest level hit is
+        the highest weight in the set containing all tips: {n5, n6, n3, n7}.
+
+        Returns the node if it exceeds the provided local_threshold.
+
+        """
+
+        ## construct a list of all tip nodes in this clade
+        tips = sorted([c for c in traverse(self) if len(c.children) == 0], key=lambda x: x.clade_perc, reverse=True)
+
+        for tip in tips:
+            tip.mother_clade = self
+
+        if return_all_nodes:
+            ## return the full ordered list of nodes
+            return tips
+        else:
+            ## else return only the top hit as default
+
+            ## checks if the node weight exceeds the provided threshold
+            if tips[0].clade_perc >= local_threshold:
+                return tips[0]
+
+            ## else return the base node
+            else:
+                self.mother_clade = self
+                return self
 
 
-def readK2report(report, pct_threshold, num_threshold):
+def parseK2line(line):
+    """ parses a kraken2 report line
+    """
+    sline = line.strip("\n").split('\t')
+
+    if len(sline) < 5:
+        return []
+    try:
+        int(sline[1])
+    except ValueError:
+        return []
+
+    #Extract relevant information
+    clade_perc = float(sline[0])
+    clade_reads =  int(sline[1])
+    taxa_reads = int(sline[2])
+    taxa_level = sline[-3]
+    ncbi_taxID = int(sline[-2])
+
+    #Get name and spaces
+    spaces = 0
+    name = sline[-1]
+    for char in name:
+        if char == ' ':
+            name = name[1:]
+            spaces += 1
+        else:
+            break
+
+    #Determine which level based on number of spaces
+    level_int = int(spaces/2)
+
+    return name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID
+
+
+def readK2report(report):
     """ Read the kraken2 report and filter according to user defined values
     """
 
     resultsdict = defaultdict(list)
 
+    main_lvls = ['R','K','D','P','C','O','F','G','S']
+
+    base_nodes = {}
+    prev_node = -1
+
     with open(report, "r") as fin:
+        ## capture the first line, but discard
+        unclassifiedline = fin.readline()
+
         for line in fin.readlines():
+            name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID = parseK2line(line)
 
-            taxa = Taxa(line)
-            taxa.parseLine()
+            ## handle tree root
+            if ncbi_taxID == 1:
+                root_node = Tree(line, name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID)
+                prev_node = root_node
 
-            if (taxa.clade_perc >= pct_threshold) & (taxa.clade_reads >= num_threshold):
-                if taxa.level_int >= 7:
-                    resultsdict[taxa.taxa_level].append(taxa)
+                base_nodes[ncbi_taxID] = root_node
+                continue
 
-    return resultsdict
+            #move to correct parent
+            while level_int != (prev_node.level_int + 1):
+                prev_node = prev_node.parent
+
+            #determine correct level ID
+            if taxa_level == '-' or len(taxa_level) > 1:
+                if prev_node.taxa_level in main_lvls:
+                    taxa_level = prev_node.taxa_level + '1'
+                else:
+                    num = int(prev_node.taxa_level[-1]) + 1
+                    taxa_level = prev_node.taxa_level[:-1] + str(num)
+
+            #make node
+            curr_node = Tree(line, name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID, None, prev_node)
+            prev_node.add_child(curr_node)
+            prev_node = curr_node
+
+            base_nodes[ncbi_taxID] = curr_node
+
+    return base_nodes, root_node
 
 
-def makeJson(resultsdict, pct_threshold, num_threshold, output_prefix, reportsDir):
+def traverse(o):
+    for value in o.children:
+        for subvalue in traverse(value):
+            yield subvalue
+    else:
+        yield o
+
+
+def get_local_max_list(branch_box):
+    """ Generate a set of local max weighting nodes for each node in branch_box
+    """
+
+    best_hits = []
+    for node in branch_box:
+        top_hit = node.find_local_max()
+        best_hits.append(top_hit)
+
+    return set(best_hits)
+
+
+def find_best_hit(root_node, pct_threshold, num_threshold):
+    """ Find the lowest level nodes on each branch which are weighted greater than the weight threshold,
+    then generate a set of local max weighting nodes for each node in branch_box.
+    """
+
+    best_hits = []
+
+    ## find lowest level scoring nodes
+    for node in traverse(root_node):
+
+        ## check if node scores above the pct_threshold
+        if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold and node.level_int >= 9:
+
+            ## construct scorebox then strip off the head node
+            scorebox = [ n.clade_perc for n in traverse(node) ][:-1]
+
+            ## check if any node in the box exceeds the pct_threshold
+            ## if so, the head node is not the lowest level node which exceeds pct_threshold on this branch
+            if any(score >= pct_threshold for score in scorebox):
+                continue
+
+            ## else it is assumed to be the lowest level scoring node on this branch
+            else:
+                ## find the local max for this scoring node
+                local_threshold = 0.1   ## the threshold for accepting a local
+                top_hit = node.find_local_max(local_threshold)
+                best_hits.append(top_hit)
+
+        else:
+            # print(colored(line, 'red'))
+            continue
+
+    return best_hits
+
+
+def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, dbdict):
     """ takes the results dict and generates a json report.
     {
     F : [taxa1, taxa2, ..., taxan],
@@ -104,29 +245,34 @@ def makeJson(resultsdict, pct_threshold, num_threshold, output_prefix, reportsDi
     "S" : "Species"
      }
 
-    out_file = f"{reportsDir}/{output_prefix}.k2.json"
+    out_json = path.abspath(f"./{output_prefix}.k2.json")
 
-    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold } }
+    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold }, "Detection_events" : []}
 
-    for taxa_level, taxa_box in resultsdict.items():
+    ## create json report dict
+    for node in branch_box:
 
-        ## deal with taxa naming
-        if ( taxa_level.startswith("S") ) & ( len(taxa_level) > 1 ):
-            tl = f"Subspecies {taxa_level[1:]}"
+        ## check if the node is its own mother_clade, and therefore has no scoring subclades
+        if node != node.mother_clade:
+            json_line = node.mother_clade.makeJsonLine(dbdict)
+            json_line["most_likely_variant"] = node.makeJsonLine(dbdict)
+            json_dict["Detection_events"].append(json_line)
+
         else:
-            tl = taxa_level_key[taxa_level]
+            json_dict["Detection_events"].append(node.makeJsonLine(dbdict))
 
-        json_dict[tl] = []
-
-        for taxa in taxa_box:
-            json_dict[tl].append(taxa.makeJsonLine())
-
-    with open(out_file, "w") as fout:
+    with open(out_json, "w") as fout:
         json.dump(json_dict, fout, indent = 4)
 
+    return out_json
 
-def parseK2reportMain(args):
+
+def parseK2reportMain(args, dbdict):
     """ main function """
     report_path = f"{args.k2WDir}/{args.output_prefix}.k2.report.txt"
-    resultsdict = readK2report(report_path, args.pct_threshold, args.num_threshold)
-    makeJson(resultsdict, args.pct_threshold, args.num_threshold, args.output_prefix, args.reportsDir)
+
+    base_nodes, root_node = readK2report(report_path)
+    best_hits = find_best_hit(root_node, args.pct_threshold, args.num_threshold)
+    out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, dbdict)
+
+    return out_json

@@ -95,12 +95,24 @@ def checkautodbWD(args):
             sys.stderr,
         )
         exit(4)
+
     if "selectFasta_autoDatabase_cleanFasta" in wd_box:
         args.cleanFasta = path.join(args.database, "selectFasta_autoDatabase_cleanFasta/")
     else:
         vprint(
             subprocessID,
             f"Fasta file database not found in the autodatabase results directory! Exiting...",
+            "prRed",
+            sys.stderr,
+        )
+        exit(4)
+
+    if "assemblies.json" in wd_box:
+        args.assemblies_json = path.join(args.database, "assemblies.json")
+    else:
+        vprint(
+            subprocessID,
+            f"assemblies.json not found in the autodatabase results directory! Exiting...",
             "prRed",
             sys.stderr,
         )
