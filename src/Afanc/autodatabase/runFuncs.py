@@ -69,7 +69,7 @@ def preprocessing(args, fasta_db_path):
 
     mkchdir(args.fasta_WDir)
 
-    fasta_dict = taxadd_Main(args, fasta_db_path, names)
+    fasta_dict = taxadd_Main(args.fasta_WDir, fasta_db_path, names, nodes)
 
     chdir(args.autoDB_WDir)
 
@@ -141,6 +141,8 @@ def makeK2db(args):
     )
 
     mkchdir(args.kraken2_WDir)
+
+    ## TODO : this does not work as intended, new additions to the database are not included properly
     mkchdir("taxonomy", 0)
     move(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp", "./taxonomy")
     move(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp", "./taxonomy")
@@ -160,8 +162,8 @@ def makeK2db(args):
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
     ## remove unnecessary directories
-    rmtree("./library")
-    rmtree("./taxonomy")
+    # rmtree("./library")
+    # rmtree("./taxonomy")
 
     chdir(args.autoDB_WDir)
 
