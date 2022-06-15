@@ -125,7 +125,7 @@ def find_best_hit(root_node, pct_threshold, num_threshold):
             ## else it is assumed to be the lowest level scoring node on this branch
             else:
                 ## find the local max for this scoring node
-                local_threshold = 0.1   ## the threshold for accepting a local
+                local_threshold = 0.5   ## the threshold for accepting a local
                 top_hit = node.find_local_max(local_threshold)
                 best_hits.append(top_hit)
 
@@ -168,7 +168,7 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
         ## check if the node is its own mother_clade, and therefore has no scoring subclades
         if node != node.mother_clade:
             json_line = node.mother_clade.makeJsonLine(dbdict)
-            json_line["most_likely_variant"] = node.makeJsonLine(dbdict)
+            json_line["closest_variant"] = node.makeJsonLine(dbdict)
             json_dict["Detection_events"].append(json_line)
 
         else:
