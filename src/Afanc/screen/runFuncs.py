@@ -250,10 +250,10 @@ def makeFinalReport(args):
 
                 ## add fields to json dict
                 ## if there is a likely variant, add to that subdict
-                if "most_likely_variant" in event:
-                    event["most_likely_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                    event["most_likely_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                    event["most_likely_variant"]["gini"] = bt2data["map_data"]["gini"]
+                if "closest_variant" in event:
+                    event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                    event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                    event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
                 ## otherwise add to the base dict
                 else:
                     event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]

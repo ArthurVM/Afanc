@@ -70,7 +70,7 @@ class Tree(object):
             ## else return only the top hit as default
 
             ## checks if the node weight exceeds the provided threshold
-            if tips[0].clade_perc >= local_threshold:
+            if tips[0].clade_perc > local_threshold:
                 return tips[0]
 
             ## else return the base node
