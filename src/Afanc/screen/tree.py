@@ -57,8 +57,8 @@ class Tree(object):
 
         """
 
-        ## construct a list of all tip nodes in this clade
-        tips = sorted([c for c in self.traverse() if len(c.children) == 0], key=lambda x: x.clade_perc, reverse=True)
+        ## construct a list of all tip which exceed the local threshold in this clade
+        tips = sorted([c for c in self.traverse() if c.clade_perc >= local_threshold][:-1], key=lambda x: x.clade_perc, reverse=True)
 
         for tip in tips:
             tip.mother_clade = self
@@ -69,8 +69,8 @@ class Tree(object):
         else:
             ## else return only the top hit as default
 
-            ## checks if the node weight exceeds the provided threshold
-            if tips[0].clade_perc > local_threshold:
+            ## checks if there are any nodes which exceed the local threshold
+            if len(tips) > 0:
                 return tips[0]
 
             ## else return the base node

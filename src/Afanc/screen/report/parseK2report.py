@@ -101,7 +101,7 @@ def get_local_max_list(branch_box):
     return set(best_hits)
 
 
-def find_best_hit(root_node, pct_threshold, num_threshold):
+def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
     """ Find the lowest level nodes on each branch which are weighted greater than the weight threshold,
     then generate a set of local max weighting nodes for each node in branch_box.
     """
@@ -110,7 +110,7 @@ def find_best_hit(root_node, pct_threshold, num_threshold):
 
     ## find lowest level scoring nodes
     for node in root_node.traverse():
-
+        # print(node.name, node.level_int, node.clade_perc, node.clade_reads)
         ## check if node scores above the pct_threshold
         if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold and node.level_int >= 9:
 
@@ -125,7 +125,6 @@ def find_best_hit(root_node, pct_threshold, num_threshold):
             ## else it is assumed to be the lowest level scoring node on this branch
             else:
                 ## find the local max for this scoring node
-                local_threshold = 0.5   ## the threshold for accepting a local
                 top_hit = node.find_local_max(local_threshold)
                 best_hits.append(top_hit)
 
@@ -136,7 +135,7 @@ def find_best_hit(root_node, pct_threshold, num_threshold):
     return best_hits
 
 
-def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, dbdict):
+def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, local_threshold, dbdict):
     """ takes the results dict and generates a json report.
     {
     F : [taxa1, taxa2, ..., taxan],
@@ -158,9 +157,9 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
     "S" : "Species"
      }
 
-    out_json = path.abspath(f"./{output_prefix}.k2.json")
+    out_json = f"{reportsDir}/{output_prefix}.k2.json"
 
-    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold }, "Detection_events" : []}
+    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold, "local_threshold" : local_threshold }, "Detection_events" : []}
 
     ## create json report dict
     for node in branch_box:
@@ -168,7 +167,7 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
         ## check if the node is its own mother_clade, and therefore has no scoring subclades
         if node != node.mother_clade:
             json_line = node.mother_clade.makeJsonLine(dbdict)
-            json_line["closest_variant"] = node.makeJsonLine(dbdict)
+            json_line["most_likely_variant"] = node.makeJsonLine(dbdict)
             json_dict["Detection_events"].append(json_line)
 
         else:
@@ -185,7 +184,7 @@ def parseK2reportMain(args, dbdict):
     report_path = f"{args.k2WDir}/{args.output_prefix}.k2.report.txt"
 
     base_nodes, root_node = readK2report(report_path)
-    best_hits = find_best_hit(root_node, args.pct_threshold, args.num_threshold)
-    out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, dbdict)
+    best_hits = find_best_hit(root_node, args.pct_threshold, args.num_threshold, args.local_threshold)
+    out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, args.local_threshold, dbdict)
 
     return out_json

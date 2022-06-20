@@ -2,7 +2,7 @@ import argparse
 import sys
 import time
 import os
-from numpy import mean, sort, cumsum
+from numpy import mean, median, sort, cumsum
 
 
 def genomeSize(fasta_file):
@@ -48,10 +48,16 @@ def gini(depth_stdout, w=1):
 def meanDOC(covarray):
     """ calculate the mean depth of coverage using a coverage array produced by samtools depth
     """
-    return sum([int(i[2]) for i in covarray if len(i) == 3])/len(covarray)
+    return mean([int(i[2]) for i in covarray if len(i) == 3])
 
 
 def breadthofCoverage(covarray, genomesize):
     """ calculate the breadth of coverage across a genome
     """
     return len(covarray)/genomesize
+
+
+def medianDOC(covarray):
+    """ calculate the median depth of coverage using a coverage array produced by samtools depth
+    """
+    return median([int(i[2]) for i in covarray if len(i) == 3])

@@ -88,15 +88,21 @@ parser_screen.add_argument('fastq',
 
 parser_screen.add_argument('-p', '--pct_threshold',
     type=float,
-    default=0.2,
+    default=5.0,
     action='store',
-    help='Min. coverage, as %%. Default=1.0.')
+    help='Min. %% of reads to call a global hit. Default=5.0.')
 
 parser_screen.add_argument('-n', '--num_threshold',
     type=int,
     default=1000,
     action='store',
     help='Min. coverage over the clade to score a hit, as no. of reads. Should be a positive integer. Default=1000.')
+
+parser_screen.add_argument('-l', '--local_threshold',
+    type=float,
+    default=0.5,
+    action='store',
+    help='Min. %% of reads to call a local hit. Decreasing this improves sensitivity but may result in false positive closest variant reporting. Default=0.5.')
 
 parser_screen.add_argument('-o', '--output_prefix',
     type=str,

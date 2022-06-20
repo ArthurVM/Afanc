@@ -114,7 +114,7 @@ def map2Hits(args):
 
     from Afanc.utilities.generalUtils import parseBT2out
     from Afanc.utilities.modifyFasta import modifyFasta
-    from Afanc.screen.maths.mappingMetrics import gini, genomeSize, breadthofCoverage, meanDOC
+    from Afanc.screen.maths.mappingMetrics import gini, genomeSize, breadthofCoverage, meanDOC, medianDOC
 
     subprocessID="MAP2HITS"
 
@@ -183,8 +183,9 @@ def map2Hits(args):
         ## calculate genome size
         genomesize = genomeSize(assembly)
 
-        ## calculate the mean depth of coverage, NB this is only the DOC at covered positions, and does not include non-covered positions
+        ## calculate the mean and median depth of coverage, NB this is only the DOC at covered positions, and does not include non-covered positions
         meandoc = meanDOC(covarray)
+        mediandoc = medianDOC(covarray)
         boc = breadthofCoverage(covarray, genomesize)
 
         ## calculate the Gini coefficient of distribution
@@ -195,6 +196,7 @@ def map2Hits(args):
         datadict["input_data"]["fastq_2"] = f"{args.fastq[1]}"
 
         datadict["map_data"]["mean_DOC"] = meandoc
+        datadict["map_data"]["median_DOC"] = mediandoc
         datadict["map_data"]["proportion_cov"] = boc
         datadict["map_data"]["gini"] = gini_co
 
@@ -202,13 +204,6 @@ def map2Hits(args):
             json.dump(datadict, fout, indent = 4)
 
     chdir(args.runWDir)
-
-
-import pysam
-from os import chdir, path, listdir, mkdir
-from collections import defaultdict
-
-from Afanc.utilities.generalUtils import vprint
 
 def makeFinalReport(args):
     """ make final report from the kraken2 and bowtie2 reports
@@ -229,8 +224,9 @@ def makeFinalReport(args):
     datadict = jsondict["results"] = {}
     jsondict["arguments"] = { "database" : args.k2_database,
         "fastqs" : args.fastq,
-        "pct_threshold" : args.pct_threshold,
         "num_threshold" : args.num_threshold,
+        "pct_threshold" : args.pct_threshold,
+        "local_threshold" : args.local_threshold,
         "output_prefix" : args.output_prefix,
     }
 
@@ -252,11 +248,13 @@ def makeFinalReport(args):
                 ## if there is a likely variant, add to that subdict
                 if "closest_variant" in event:
                     event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                    event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
                     event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
                     event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
                 ## otherwise add to the base dict
                 else:
                     event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                    event["median_DOC"] = bt2data["map_data"]["median_DOC"]
                     event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
                     event["gini"] = bt2data["map_data"]["gini"]
 
