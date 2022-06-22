@@ -53,11 +53,12 @@ def readK2report(report):
     prev_node = -1
 
     with open(report, "r") as fin:
-        ## capture the first line, but discard
-        unclassifiedline = fin.readline()
 
         for line in fin.readlines():
             name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID = parseK2line(line)
+
+            if name == "unclassified":
+                continue
 
             ## handle tree root
             if ncbi_taxID == 1:
@@ -159,7 +160,7 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
 
     out_json = f"{reportsDir}/{output_prefix}.k2.json"
 
-    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold, "local_threshold" : local_threshold }, "Detection_events" : []}
+    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold, "local_threshold" : local_threshold }, "Detection_events" : [] }
 
     ## create json report dict
     for node in branch_box:
