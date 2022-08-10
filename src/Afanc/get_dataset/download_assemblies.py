@@ -6,22 +6,22 @@ from Afanc.utilities.runCommands import command
 from Afanc.utilities.generalUtils import vprint
 from Afanc.utilities.makeWD import mkchdir
 
-def download_genome(assembly, num, accessions_flag):
+def download_genome(assembly, args):
     """ Download a genome from genbank using the ensembl suite.
     """
 
-    if not accessions_flag:
+    if not args.accessions:
         runline = f"esearch -db assembly -query \'{assembly}[organism] AND latest[filter]\' | esummary | xtract -pattern DocumentSummary -element FtpPath_GenBank"
 
     else:
         runline = f"esearch -db assembly -query \'{assembly}\' | esummary | xtract -pattern DocumentSummary -element FtpPath_GenBank"
 
-    tmp_ftp_dir = command(runline, "DOWNLOAD_HITS").run_comm_quiet(1)
+    tmp_ftp_dir = command(runline, "DOWNLOAD_HITS").run_comm_quiet(1, args.stdout, args.stderr)
 
     ftp_dirs = [ f for f in tmp_ftp_dir[0].decode().split("\n") if f != '']
 
-    if len(ftp_dirs) >= num:
-        ftp_dirs = ftp_dirs[:num]
+    if len(ftp_dirs) >= args.num_assemblies:
+        ftp_dirs = ftp_dirs[:args.num_assemblies]
 
     # print(ftp_dirs)
 
@@ -35,7 +35,7 @@ def download_genome(assembly, num, accessions_flag):
             continue
         else:
             grepline = f"curl {ftp_dir}/{base}_genomic.fna.gz --output {outfile}"
-            stdout, stderr = command(grepline, "DOWNLOAD_HITS").run_comm_quiet(1)
+            stdout, stderr = command(grepline, "DOWNLOAD_HITS").run_comm_quiet(1, args.stdout, args.stderr)
 
 
 def parse_names_file(txt):
@@ -74,7 +74,7 @@ def runGet_dataset(args):
         if not args.accessions:
             mkchdir(f"./{id.replace(' ', '_')}")
 
-            download_genome(id, args.num_assemblies, args.accessions)
+            download_genome(id, args)
 
             chdir("../")
 
