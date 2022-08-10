@@ -1,12 +1,15 @@
 """
-Parse arguments for Afanc
+Afanc high-resolution Metagenomics disambiguator.
 """
-
 import sys
 import argparse
+from ._version import __version__
 
-from Afanc.utilities.generalUtils import isDir, isFile, checkDate
+from Afanc.utilities.generalUtils import isDir, isFile, checkDate, reformat_mapping_arg
 
+"""
+Parse arguments for Afanc
+"""
 
 def run_subtool(args):
     ## level 0 run function
@@ -14,7 +17,12 @@ def run_subtool(args):
     ## initialise log files to deposit stdout and stderr when necessary
     initLogFiles(args)
 
-    if args.command == "autodatabase":
+    if args.command == "get_dataset":
+        ## get a dataset from genbank and generate a directory structure which can be used by autodatabase
+        from Afanc.get_dataset.download_assemblies import runGet_dataset
+        runGet_dataset(args)
+
+    elif args.command == "autodatabase":
         ## run autodatabase from a fasta directory structure
         from Afanc.autodatabase.runFuncs import runAutoDB
         runAutoDB(args)
@@ -32,11 +40,45 @@ def initLogFiles(args):
     args.stderr = open(f"{args.output_prefix}.stderr.txt", "a")
 
 
-base_parser = argparse.ArgumentParser(add_help=True)
+base_parser = argparse.ArgumentParser(add_help=True, description=__doc__)
+
+base_parser.add_argument('-v', '--version', action='version',
+    version='%(prog)s {version}'.format(version=__version__))
 
 subparsers = base_parser.add_subparsers(
     title="[sub-commands]", dest="command"
 )
+
+## get_dataset args parser
+parser_getDataset = subparsers.add_parser(
+    "get_dataset",
+    help="Download a dataset of genome assemblies from GenBank.",
+)
+
+parser_getDataset.add_argument('ID_file',
+    type=isFile,
+    action='store',
+    help='List of line seperated IDs to download. By default, these will be assumed to be species names. If the -a flag is provided, they will be assumed as accession IDs.')
+
+parser_getDataset.add_argument('-a', '--accessions',
+    action='store_true',
+    default=False,
+    help='Flag to specify that ID_file contains accession IDs, rather than species names.')
+
+parser_getDataset.add_argument('-n', '--num_assemblies',
+    type=int,
+    default=1,
+    action='store',
+    help='The number of assemblies for each species to download. If the -a flag is provided, this is ignored. Default=1.')
+
+parser_getDataset.add_argument('-o', '--output_prefix',
+    type=str,
+    default='assemblies',
+    action='store',
+    help='Output prefix for this run. Default=assemblies.')
+
+
+parser_getDataset.set_defaults(func=run_subtool)
 
 ## autodatabase args parser
 parser_autodb = subparsers.add_parser(
@@ -55,7 +97,7 @@ parser_autodb.add_argument('-o', '--output_prefix',
     action='store',
     help='Output prefix for this run. Default=Afanc_autodb.')
 
-parser_autodb.add_argument('-d', '--ncbi_date',
+parser_autodb.add_argument('-n', '--ncbi_date',
     type=checkDate,
     default="2020-05-01",
     action='store',
@@ -66,6 +108,12 @@ parser_autodb.add_argument('-m', '--mode_range',
     default=0.1,
     action='store',
     help='Range to take around the mode of the average mash distance. Default=0.1.')
+
+parser_autodb.add_argument('-t', '--threads',
+    type=int,
+    default=4,
+    action='store',
+    help='Number of threads to used for this run. Default=4.')
 
 parser_autodb.set_defaults(func=run_subtool)
 
@@ -103,6 +151,13 @@ parser_screen.add_argument('-l', '--local_threshold',
     default=0.5,
     action='store',
     help='Min. %% of reads to call a local hit. Decreasing this improves sensitivity but may result in false positive closest variant reporting. Default=0.5.')
+
+parser_screen.add_argument('-m', '--mapping_sensitivity',
+    type=reformat_mapping_arg,
+    default="very-sensitive",
+    action='store',
+    choices=["very-sensitive", "sensitive", "fast", "very-fast"],
+    help='Sensitivity of mapping to use when mapping reads to suspected target genomes.')
 
 parser_screen.add_argument('-o', '--output_prefix',
     type=str,

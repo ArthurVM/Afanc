@@ -27,9 +27,9 @@ def runScreen(args):
     map2Hits(args)
 
     ## generate the final report
-    makeFinalReport(args)
+    final_report = makeFinalReport(args)
 
-    vprint("FINISHED", "Pipeline terminated successfully.", "prGreen")
+    vprint("FINISHED", f"Final report can be found at {final_report}", "prGreen")
 
 
 def runKraken2(args):
@@ -156,7 +156,7 @@ def map2Hits(args):
     chdir(args.bt2WDir)
 
     ## map reads to the aggregated index
-    mapline = f"bowtie2 -p {args.threads} -x {bt2_index} --very-sensitive -1 {args.fastq[0]} -2 {args.fastq[1]} > Hits.sam"
+    mapline = f"bowtie2 -p {args.threads} -x {bt2_index} --{args.mapping_sensitivity} -1 {args.fastq[0]} -2 {args.fastq[1]} > Hits.sam"
     stdout, stderr = command(mapline, "MAP").run_comm(1, args.stdout, args.stderr)
 
     ## capture general mapping stats
@@ -264,5 +264,9 @@ def makeFinalReport(args):
 
                 datadict["Detection_events"].append(event)
 
-    with open(f"./{args.output_prefix}.json", "w") as fout:
+    final_report = path.abspath(f"./{args.output_prefix}.json")
+
+    with open(final_report, "w") as fout:
         json.dump(jsondict, fout, indent = 4)
+
+    return final_report
