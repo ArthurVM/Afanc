@@ -63,7 +63,7 @@ def preprocessing(args, fasta_db_path):
     mkchdir("ncbi_taxonomy")
 
     ## get ncbi taxonomy for given date
-    names, nodes = getTaxonomy(args, "2020-05-01")
+    names, nodes = getTaxonomy(args, args.ncbi_date)
 
     chdir(args.autoDB_WDir)
 
@@ -155,15 +155,15 @@ def makeK2db(args):
     k2build_line = "kraken2-build --db . --download-taxonomy"
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
-    k2build_line = f"kraken2-build --build --threads 10 --db ."
+    k2build_line = f"kraken2-build --build --threads {args.threads} --db ."
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
     k2build_line = f"kraken2-inspect --db . > database.txt"
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
-    ## remove unnecessary directories
-    # rmtree("./library")
-    # rmtree("./taxonomy")
+    ## remove massive unnecessary directories
+    rmtree("./library")
+    rmtree("./taxonomy")
 
     chdir(args.autoDB_WDir)
 

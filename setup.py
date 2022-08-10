@@ -25,17 +25,37 @@ class Install(DistutilsInstall):
 with open("README", 'r') as f:
     long_description = f.read()
 
+exec(open('src/Afanc/_version.py').read())
+
 setup(
     name='Afanc',
-    version='0.1-alpha',
+    version=__version__,
     description='General purpose high-resolution metagenomics disambiguation.',
     license="MIT",
     long_description=long_description,
     author='Arthur V. Morris',
     author_email='morrisa28@cardiff.ac.uk',
+    url="https://github.com/ArthurVM/Afanc",
     packages=find_packages('src'),
     package_dir={'': 'src'},
     include_package_data=True,
+    classifiers=[
+        "Intended Audience :: Developers",
+        "Operating System :: Unix",
+        "Operating System :: POSIX",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Programming Language :: Python :: Implementation :: PyPy",
+        "Topic :: Utilities",
+    ],
     install_requires=[
     'Biopython==1.79',
     'numpy==1.20.3',
@@ -45,7 +65,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'Afanc = Afanc.cli:main',
+            'afanc = Afanc.cli:main',
         ],
     },
     # cmdclass={'install': Install},

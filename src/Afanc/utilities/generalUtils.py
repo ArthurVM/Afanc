@@ -37,6 +37,8 @@ def checkDate(date):
     if len(sdate) != 3 or len(sdate[0]) != 4 or sdate[1] != "05" or len(sdate[2]) != 2:
         vprint("MAIN", f"Date {date} is invalid. Please ensure the date is of the form YYYY-05-MM.")
         exit(3)
+    else:
+        return date
 
 
 def parseBT2out(bt2out):
@@ -77,6 +79,12 @@ def gendbdict(cleanFasta_WDir):
         dbdict[taxID] = [assemblyID, accession.split("_genomic")[0]]
 
     return dbdict
+
+
+def reformat_mapping_arg(argument):
+    """ takes the mapping argument and reformats it
+    """
+    return argument.replace("_", "-")
 
 
 ###################
