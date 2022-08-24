@@ -92,7 +92,8 @@ def getHits(args):
 
     else:
         ## get genomes from autodatabase results directory: /selectFasta_autoDatabase_cleanFasta/
-        ## TODO : this branch is broken due to inconsistent ncbi_taxID usage
+        ## TODO : this branch is bugged due to inconsistent ncbi_taxID usage
+        ## TEMP FIX : download genomes which cannot be found by ncbi_taxID
         subprocessID="GET_HITS"
 
         vprint(
@@ -231,22 +232,37 @@ def makeFinalReport(args):
     }
 
     ## collect k2 json reports
-    reportsbox = [g for g in listdir(args.reportsDir) if g.endswith("mapstats.json")]
+    bt2_reportsbox = [g for g in listdir(args.reportsDir) if g.endswith("mapstats.json")]
 
+    ## read general report
     with open(f"{args.reportsDir}/{args.output_prefix}.k2.json", 'r') as k2fin:
         k2data = json.load(k2fin)
 
         for event in k2data["Detection_events"]:
-            for report in reportsbox:
-                if str(event['taxon_id']) in report:
-                    report_json = report
 
+            ## horrible block to deal with most likely variants
+            if "closest_variant" in event:
+                variant_flag = True
+            else:
+                variant_flag = False
+
+            for report in bt2_reportsbox:
+
+                if variant_flag:
+                    if str(event["closest_variant"]['taxon_id']) in report:
+                        report_json = report
+
+                else:
+                    if str(event['taxon_id']) in report:
+                        report_json = report
+
+            ## read Bowtie2 report
             with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:      ## TODO: sort out this line to make it more robust, i.e. remove _genomic
                 bt2data = json.load(bt2fin)
 
                 ## add fields to json dict
                 ## if there is a likely variant, add to that subdict
-                if "closest_variant" in event:
+                if variant_flag:
                     event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
                     event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
                     event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
