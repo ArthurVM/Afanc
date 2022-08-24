@@ -64,7 +64,7 @@ def runGet_dataset(args):
 
     print(f"Found {numIDs} IDs in {args.ID_file}\n")
 
-    mkchdir(f"./assemblies")
+    mkchdir(f"./{args.output_prefix}")
 
     for i, id in enumerate(assemblyIDs):
 

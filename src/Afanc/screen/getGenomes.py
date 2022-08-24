@@ -26,7 +26,6 @@ def getAccessions(report, dbdict):
         json_data = json.load(fin)
 
         for subdict in json_data["Detection_events"]:
-            # print(dbdict[str(subdict["taxon_id"])])
             accessions.append(dbdict[str(subdict["taxon_id"])][0])
 
     return accessions
@@ -39,7 +38,7 @@ def get_hitIDs(out_json):
     with open(out_json, 'r') as fin:
         json_data = json.load(fin)
 
-        hit_ids = [ subdict["name"] for subdict in json_data["Detection_events"] ]
+        hit_ids = [ subdict["closest_variant"]["name"] if "closest_variant" in subdict else subdict["name"] for subdict in json_data["Detection_events"] ]
 
     return hit_ids
 
@@ -73,10 +72,19 @@ def download_genome(assembly, stdout, stderr, taxID=False):
     followed by a trailing underscore.
     """
 
-    runline = f"esearch -db assembly -query \'{assembly}[organism] AND latest[filter]\' | esummary | xtract -pattern DocumentSummary -element FtpPath_GenBank | head -1"
+    runline = f"esearch -db assembly -query \'{assembly}[organism] AND latest[filter]\' | esummary | xtract -pattern DocumentSummary -element FtpPath_GenBank"
     tmp_ftp_dir = command(runline, "DOWNLOAD_HITS").run_comm_quiet(1, stdout, stderr)
 
-    ftp_dir = tmp_ftp_dir[0].decode().strip("\n")
+    ## get all ftp directories belonging to the given assembly
+    ftp_dirs = [ f for f in tmp_ftp_dir[0].decode().split("\n") if f != '']
+
+    ## check anything was found
+    if len(ftp_dirs) == 0:
+        print(f"{assembly} NOT FOUND ON GENBANK! SKIPPING...")
+        return 2
+
+    ## get first ftp directory
+    ftp_dir = ftp_dirs[0]
 
     base = os.path.basename(ftp_dir.split("/")[-1])
 
@@ -88,6 +96,7 @@ def download_genome(assembly, stdout, stderr, taxID=False):
 
     if os.path.exists(outfile):
         print(f"FILE ALREADY EXISTS! SKIPPING...")
+        return 3
     else:
         grepline = f"curl {ftp_dir}/{base}_genomic.fna.gz --output {outfile}"
         stdout, stderr = command(grepline, "DOWNLOAD_HITS").run_comm(1, stdout, stderr)
@@ -111,8 +120,16 @@ def getLocalGenomes(out_json, args):
         json_data = json.load(fin)
 
         for subdict in json_data["Detection_events"]:
-            taxID = str(subdict["taxon_id"])
-            assemblyID = subdict["name"]
+
+            ## check to see if there is variant information
+            ## if so, make this the target
+            if "closest_variant" in subdict:
+                taxID = str(subdict["closest_variant"]["taxon_id"])
+                assemblyID = subdict["closest_variant"]["name"]
+
+            else:
+                taxID = str(subdict["taxon_id"])
+                assemblyID = subdict["name"]
 
             ## if the local assembly cannot be found using the ncbi taxID, download genome from GenBank
             ##

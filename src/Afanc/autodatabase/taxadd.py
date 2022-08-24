@@ -1,4 +1,5 @@
 import re
+import gzip
 import pandas as pd
 from collections import defaultdict
 from os import mkdir, chdir, path, walk, rename
@@ -8,13 +9,20 @@ def editFasta(infasta, outdir, taxid):
     """ Constructs fastas to build the kraken2 database from using the ncbi taxonomy ID
     """
 
-    # edit the headers in each fasta file then output with the taxID
-    with open(infasta) as file:
-         fasta_data = file.read()
-         fasta_edit = re.sub(r"(>.+)",r"\1|kraken:taxid|{0}".format(taxid), fasta_data)
-         fasta_file = f"{outdir}/{taxid}_{path.basename(infasta)}"
-         fasta_file_fin = open(fasta_file, "w")
-         fasta_file_fin.write(fasta_edit)
+    if infasta.endswith(".gz"):
+        file = gzip.open(infasta, "rt")
+        fasta_file = f"{outdir}/{taxid}_{path.basename(infasta).split('.gz')[0]}"
+    else:
+        file = open(infasta, "r")
+        fasta_file = f"{outdir}/{taxid}_{path.basename(infasta)}"
+
+    ## edit the headers in each fasta file then output with the taxID
+    fasta_data = file.read()
+    fasta_edit = re.sub(r"(>.+)",r"\1|kraken:taxid|{0}".format(taxid), fasta_data)
+    fasta_file_fin = open(fasta_file, "w")
+    fasta_file_fin.write(fasta_edit)
+
+    file.close()
 
     return 0
 

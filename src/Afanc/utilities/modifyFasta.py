@@ -14,7 +14,7 @@ def modifyFasta(fasta_file, accession):
     if fasta_file.endswith(".gz"):
         fin = gzip.open(fasta_file, "rt")
     else:
-        fin = open(fasta_file, "rt")
+        fin = open(fasta_file, "r")
 
     for rec in SeqIO.parse(fin, "fasta"):
         record = SeqRecord(

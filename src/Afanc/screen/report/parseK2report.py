@@ -168,7 +168,7 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
         ## check if the node is its own mother_clade, and therefore has no scoring subclades
         if node != node.mother_clade:
             json_line = node.mother_clade.makeJsonLine(dbdict)
-            json_line["most_likely_variant"] = node.makeJsonLine(dbdict)
+            json_line["closest_variant"] = node.makeJsonLine(dbdict)
             json_dict["Detection_events"].append(json_line)
 
         else:
