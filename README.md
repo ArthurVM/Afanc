@@ -9,7 +9,7 @@ Installation is quick and easy, simply run
   pip3 install ./
 ```
 
-## Running Afanc
+## Description
 
 ### Sub-Modules
 Afanc is split into 3 sub-modules:
@@ -60,7 +60,7 @@ Autodatabase automates the process of constructing a Kraken2 database. This is a
 
 This module takes a directory structure as described in above, in the get_dataset section. It must contain directories for each species level taxon, where subdirectories within each species directory pertain to subspecies/variants/strains, or any other taxonomic rank lower than species (hereafter referred to simply as variants).
 
-There are six stages to the workflow:
+There are six stages to the workflow of this module:
 
     1) Download the NCBI taxonomy
     2) Add the taxonomic ID to the sequence IDs and the filenames
@@ -74,8 +74,38 @@ By default, it will use the ncbi database from 2020-05-01. If a species or varia
 ### screen
 This module takes a database produced by the autodatabase module, and paired end read data in .fastq format, and performs metagenomic analysis upon it. It produces a report in .json format.
 
+There are five stages to the workflow of this module:
+  
+    1) Check autodatabase structure is correct
+    2) Run Kraken2 on the input dataset
+    3) Parse and filter the K2 report to determine the species contained within the dataset, and the most likely variants ("hits")
+    4) Map reads to hit assemblies
+    5) Construct report
+    
+## Running Afanc
+
+Running Afanc should, in general, be done in the order of modules presented above. The `get_dataset` module is not necessary if you already have genome assemblies in the directory structure outlined previously.
+
+### Step 1: Create Assembly Directory
+```
+  afanc get_dataset species_list.txt -n 5 -o my_assemblies_dir
+```
+This will create a directory structure containing up to 5 (if enough are available on GenBank) assemblies of each species/variant downloaded from GenBank. This can then be fed into the autodatabase module
+
+### Step 2: Create a Database
+```
+afanc autodatabase my_assemblies_dir -o my_assemblies_DB
+```
+This will create a directory structure, which constitutes the database for screening reads against.
+
+### Step 3: Screen Reads
+```
+afanc screen my_assemblies_DB my_reads_1.fq.gz my_reads_2.fq.gz -o my_analysis
+```
+Results will be deposited in a directory structure within `my_analysis`.
+
 ## Dependencies
-Afanc has a number of dependancies which must be satisfied for full functionality.
+Afanc has a number of dependancies which must be satisfied for full functionality. All software must be in PATH.
 ```
 perl
 Python 3.7
