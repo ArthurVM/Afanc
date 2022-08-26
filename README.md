@@ -94,13 +94,13 @@ This will create a directory structure containing up to 5 (if enough are availab
 
 ### Step 2: Create a Database
 ```
-afanc autodatabase my_assemblies_dir -o my_assemblies_DB
+  afanc autodatabase my_assemblies_dir -o my_assemblies_DB
 ```
 This will create a directory structure, which constitutes the database for screening reads against.
 
 ### Step 3: Screen Reads
 ```
-afanc screen my_assemblies_DB my_reads_1.fq.gz my_reads_2.fq.gz -o my_analysis
+  afanc screen my_assemblies_DB my_reads_1.fq.gz my_reads_2.fq.gz -o my_analysis
 ```
 Results will be deposited in a directory structure within `my_analysis`.
 
