@@ -1,5 +1,14 @@
-# Afanc: High Resolution Metagenomic Disambiguator
-A toolkit which can perform variant level metageonomics disambiguation of NGS reads.
+# Afanc: High Resolution Metagenomic Disambiguator\
+
+| | |
+| --- | --- |
+| Author  | Arthur Morris ([ArthurVM](https://github.com/ArthurVM/)) |
+|         | Anna Price ([annacprice](https://github.com/annacprice/)) |
+| Email   | <arthurvmorris@gmail.com> |
+| License | [MIT](https://opensource.org/licenses/MIT) |
+
+## Description
+A toolkit for performing variant level metageonomics disambiguation of NGS reads.
 
 ## Installation
 Installation is quick and easy, simply run
