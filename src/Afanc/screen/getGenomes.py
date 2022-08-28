@@ -55,7 +55,7 @@ def getGenomesbyAcc(genomes, args):
 
 
 def getGenomesbyName(assembly_ids, args):
-    """ Get genome assemblies for each hit from genbank using the ensembl suite.
+    """ Get genome assemblies for each hit from genbank using the Entrez suite.
     Takes assembly names from the kraken2 report json.
     """
 
@@ -67,7 +67,7 @@ def getGenomesbyName(assembly_ids, args):
 
 
 def download_genome(assembly, stdout, stderr, taxID=False):
-    """ Download a genome from genbank using the ensembl suite.
+    """ Download a genome from genbank using the Entrez suite.
     If taxID is provided, this is appended to the front of the assembly filename
     followed by a trailing underscore.
     """

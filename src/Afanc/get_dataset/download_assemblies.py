@@ -7,7 +7,7 @@ from Afanc.utilities.generalUtils import vprint
 from Afanc.utilities.makeWD import mkchdir
 
 def download_genome(assembly, args):
-    """ Download a genome from genbank using the ensembl suite.
+    """ Download a genome from genbank using the entrez suite.
     """
 
     if not args.accessions:
