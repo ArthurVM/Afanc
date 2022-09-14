@@ -167,3 +167,19 @@ Install instructions for Entrez Direct E-utilities can be found at https://www.n
   rm -r bowtie2-2.3.4.1
   rm bowtie2-2.3.4.1-source.zip
 ```
+
+### Benchmarking
+Single species dataset
+```
+❯ zcat Myco_sim_data/M1/M1.1.1_{1,2}.fq.gz | wc -l
+643960
+❯ time afanc screen -o M1.1.1 -t 6 ./Mycobacteriaciae_DB_3.0 Myco_sim_data/M1/M1.1.1_1.fq.gz Myco_sim_data/M1/M1.1.1_2.fq.gz > M1.1.1.afanc.txt
+afanc screen -o M1.1.1 -t 6 ./Mycobacteriaciae_DB_3.0   > M1.1.1.afanc.txt  48.46s user 2.87s system 224% cpu 22.836 total
+```
+Highly complex compound (multi-species/variant) dataset
+```
+❯ zcat Myco_sim_data/M2/M2.1_{1,2}.fq.gz | wc -l
+2341696
+❯ time afanc screen -o M2.1 -t 6 ./Mycobacteriaciae_DB_3.0 Myco_sim_data/M2/M2.1_1.fq.gz Myco_sim_data/M2/M2.1_2.fq.gz > M2.1.afanc.txt
+afanc screen -o M2.1 -t 6 ./Mycobacteriaciae_DB_3.0   > M2.1.afanc.txt  240.89s user 4.71s system 257% cpu 1:35.22 total
+```
