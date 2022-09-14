@@ -1,4 +1,4 @@
-# Afanc: High Resolution Metagenomic Disambiguator\
+# Afanc: High Resolution Metagenomic Disambiguator
 
 | | |
 | --- | --- |
