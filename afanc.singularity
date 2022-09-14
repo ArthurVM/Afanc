@@ -36,6 +36,9 @@ apt-get update \
 && pip3 install pandas==${pandas_version} \
 && pip3 install scipy==${scipy_version}
 
+sh -c "$(curl -fsSL ftp://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)" \
+&& export PATH=${PATH}:${HOME}/edirect
+
 curl -fsSL https://sourceforge.net/projects/bowtie-bio/files/bowtie2/${bowtie2_version}/bowtie2-${bowtie2_version}-source.zip -o bowtie2-${bowtie2_version}-source.zip \
 && unzip bowtie2-${bowtie2_version}-source.zip \
 && make -C bowtie2-${bowtie2_version} prefix=/usr/local install \
