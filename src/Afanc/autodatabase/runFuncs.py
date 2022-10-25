@@ -1,5 +1,5 @@
 from shutil import move, rmtree
-from os import mkdir, chdir, path, listdir
+from os import mkdir, chdir, path, listdir, rename, getcwd
 from collections import defaultdict
 
 from Afanc.utilities.runCommands import command
@@ -142,19 +142,26 @@ def makeK2db(args):
 
     mkchdir(args.kraken2_WDir)
 
-    ## TODO : this does not work as intended, new additions to the database are not included properly
     mkchdir("taxonomy", 0)
-    move(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp", "./taxonomy")
-    move(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp", "./taxonomy")
+
+    # move(f"{args.autoDB_WDir}/ncbi_taxonomy/", "./")
+    # chdir("ncbi_taxonomy")
 
     for fasta in listdir(args.cleanFasta_WDir):
         fasta_path = path.join(args.cleanFasta_WDir, fasta)
         k2build_line = f"kraken2-build --add-to-library {fasta_path} --db ."
         stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm_quiet(1, args.stdout, args.stderr)
 
-    k2build_line = "kraken2-build --db . --download-taxonomy"
+    k2build_line = "kraken2-build --skip-maps --db . --download-taxonomy"
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
+    ## move new ncbi taxonomy database taxdump files to the kraken2 taxonomy directory
+    rename("./taxonomy/names.dmp", f"./taxonomy/names.dmp.old")
+    rename("./taxonomy/nodes.dmp", f"./taxonomy/nodes.dmp.old")
+    move(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp", "./taxonomy")
+    move(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp", "./taxonomy")
+
+    ## build and inspect the kraken2 database
     k2build_line = f"kraken2-build --build --threads {args.threads} --db ."
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
