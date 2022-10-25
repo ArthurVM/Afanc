@@ -68,7 +68,7 @@ def runGet_dataset(args):
 
     for i, id in enumerate(assemblyIDs):
 
-        stdout.write(f"\rDownloading assemblies for {id} ({i+1}/{numIDs})")
+        stdout.write(f"\rDownloading assemblies for {id} ({i+1}/{numIDs})\r")
         stdout.flush()
 
         if not args.accessions:
