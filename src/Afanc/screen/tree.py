@@ -79,7 +79,7 @@ class Tree(object):
                 return self
 
     def traverse(self):
-        """ Generator function for yielding all subnode of a given node
+        """ Generator function for yielding all subnodes of a given node
         """
         for child in self.children:
             for grandchild in child.traverse():
