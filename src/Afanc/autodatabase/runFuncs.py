@@ -152,30 +152,25 @@ def makeK2db(args):
         k2build_line = f"kraken2-build --add-to-library {fasta_path} --db ."
         stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm_quiet(1, args.stdout, args.stderr)
 
-    k2build_line = "kraken2-build --db . --download-taxonomy"
+    k2build_line = "kraken2-build --skip-maps --db . --download-taxonomy"
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
-    # rename("./taxonomy/names.dmp", f"./taxonomy/names.dmp.old")
-    # rename("./taxonomy/nodes.dmp", f"./taxonomy/nodes.dmp.old")
-    # move(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp", "./taxonomy")
-    # move(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp", "./taxonomy")
+    ## move new ncbi taxonomy database taxdump files to the kraken2 taxonomy directory
+    rename("./taxonomy/names.dmp", f"./taxonomy/names.dmp.old")
+    rename("./taxonomy/nodes.dmp", f"./taxonomy/nodes.dmp.old")
+    move(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp", "./taxonomy")
+    move(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp", "./taxonomy")
 
-    ## rename old seq2taxid.map file and move new one
-
+    ## build and inspect the kraken2 database
     k2build_line = f"kraken2-build --build --threads {args.threads} --db ."
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
-
-    print(getcwd())
-
-    # rename(f"{args.kraken2_WDir}/seqid2taxid.map", f"{args.kraken2_WDir}/seqid2taxid.map.old")
-    # move(f"{args.autoDB_WDir}/ncbi_taxonomy/seqid2taxid.map", "./")
 
     k2build_line = f"kraken2-inspect --db . > database.txt"
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
 
     ## remove massive unnecessary directories
-    # rmtree("./library")
-    # rmtree("./taxonomy")
+    rmtree("./library")
+    rmtree("./taxonomy")
 
     chdir(args.autoDB_WDir)
 

@@ -11,19 +11,23 @@ def editFasta(infasta, outdir, taxid, taxname):
     """
 
     if infasta.endswith(".gz"):
-        file = gzip.open(infasta, "rt")
+        fasta_fin = gzip.open(infasta, "rt")
         fasta_file = f"{outdir}/{taxid}_{path.basename(infasta).split('.gz')[0]}"
     else:
-        file = open(infasta, "r")
+        fasta_fin = open(infasta, "r")
         fasta_file = f"{outdir}/{taxid}_{path.basename(infasta)}"
 
-    ## edit the headers in each fasta file then output with the taxID
-    fasta_data = file.read()
-    fasta_edit = re.sub(r"(>.+)", r"\1|kraken:taxid|{0}|{1}".format(taxid, taxname), fasta_data)
-    fasta_file_fin = open(fasta_file, "w")
-    fasta_file_fin.write(fasta_edit)
+    fasta_fout = open(fasta_file, "w")
 
-    file.close()
+    ## edit the headers in each fasta file then output with the taxID
+
+    for rec in SeqIO.parse(fasta_fin, "fasta"):
+        header = f">{rec.id}|kraken:taxid|{taxid} {taxname}\n"
+        fasta_fout.write(header)
+        fasta_fout.write(str(rec.seq)+"\n")
+
+    fasta_fin.close()
+    fasta_fout.close()
 
     return 0
 
@@ -36,7 +40,7 @@ def addTaxon(taxname, mother_clade_taxid, names_df, nodes_df):
     ## max_taxid increased by a factor of 10 to it's length - 1
     ## this should avoid future conflicts
     max_taxid = max(names_df[0])
-    taxid = max_taxid + ( 10**(len(taxid)-1) )
+    taxid = max_taxid + ( 10**(len(str(max_taxid))-1) )
 
     ## hacky way of dealing with this, but anything above species level should not be getting introduced into the tax db anyway
     if taxname.count(" ")>1:
@@ -46,8 +50,8 @@ def addTaxon(taxname, mother_clade_taxid, names_df, nodes_df):
     else:
         rank = "no rank"
 
-    names_dbline = pd.DataFrame([ [taxid, taxname, "", "scientific name", "NaN"] ])
-    nodes_dbline = pd.DataFrame([ [taxid, mother_clade_taxid, rank, "", "1", "1", "1", "1", "1" ,"1", "1", "1", "" ] ])
+    names_dbline = pd.DataFrame([ [taxid, taxname, " ", "scientific name"] ])
+    nodes_dbline = pd.DataFrame([ [taxid, mother_clade_taxid, rank, "", "1", "1", "1", "1", "1" ,"1", "1", "1", " "] ])
 
     names_df = names_df.append(names_dbline)
     nodes_df = nodes_df.append(nodes_dbline)
@@ -89,7 +93,6 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df):
         ###  TAXADD BLOCK  ###
         ### IN DEVELOPMENT ###
 
-        """
         ## check to see if a mother clade is given
         if mother_clade != None:
             ## find taxid for the mother clade
@@ -131,25 +134,9 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df):
             else:
                 print(f"Found {genus_taxid}.", end="\n")
                 taxid, names_df, nodes_df = addTaxon(taxname, genus_taxid, names_df, nodes_df)
-        """
+
 
     return taxid, names_df, nodes_df
-
-
-def writeSeq2taxid(scaffold_taxid_dict, outdir):
-    """ Writes a new seqid2taxid.map file
-    """
-
-    with open(f"{outdir}/seqid2taxid.map", 'w') as fout:
-        for taxid, scaffids in scaffold_taxid_dict.items():
-            for scaffid in scaffids:
-                print(f"{scaffid}\t{taxid}", file=fout)
-
-
-def get_scaffold_ids(fasta):
-    """ returns a list of scaffod ids
-    """
-    return [ rec.id for rec in SeqIO.parse(fasta, "fasta") ]
 
 
 def writeDmp(names_df, nodes_df, outdir):
@@ -159,16 +146,17 @@ def writeDmp(names_df, nodes_df, outdir):
     with open(f"{outdir}/names.dmp", 'w') as fout:
         for index, row in names_df.iterrows():
             tmp_row = list([str(r) for r in row])[:-1]
-            tmp_row.append("")
             newrow = "\t|\t".join(tmp_row)
+            newrow += "\t|"
             print(newrow, file=fout)
 
     with open(f"{outdir}/nodes.dmp", 'w') as fout:
         for index, row in nodes_df.iterrows():
             tmp_row = list([str(r) for r in row])[:-1]
-            tmp_row.append("")
             newrow = "\t|\t".join(tmp_row)
+            newrow += "\t|"
             print(newrow, file=fout)
+
 
 
 def readDmp(dmp_file):
@@ -208,11 +196,6 @@ def taxadd_Main(fasta_WDir, fasta_db_path, names_path, nodes_path):
             # get the taxonomic ID
             taxid, names_df, nodes_df = getTaxidNames(taxname, mother_clade, names_df, nodes_df)
 
-            ## collect scaffold ids for writing seqid2taxid.map file
-            scaffold_ids = get_scaffold_ids(infasta)
-            for scaffold_id in scaffold_ids:
-                scaffold_taxid_dict[taxid].append(scaffold_id)
-
             ## errorStrategy : Ignore equivilent
             ## TODO: add taxa to names and nodes
             if taxid == None:
@@ -222,13 +205,10 @@ def taxadd_Main(fasta_WDir, fasta_db_path, names_path, nodes_path):
 
     ## rename the old names.dmp file
     dirpath = "/".join(names_path.split("/")[:-1])
-    rename(names_path, f"{dirpath}/names.dmp.old")
-    rename(nodes_path, f"{dirpath}/nodes.dmp.old")
+    rename(names_path, f"{dirpath}/names.dmp.backup")
+    rename(nodes_path, f"{dirpath}/nodes.dmp.backup")
 
     ## write the new nodes.dmp file
     writeDmp(names_df, nodes_df, dirpath)
-
-    ## write new seq2taxid.map file
-    writeSeq2taxid(scaffold_taxid_dict, dirpath)
 
     return fasta_dict
