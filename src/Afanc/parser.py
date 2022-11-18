@@ -99,9 +99,9 @@ parser_autodb.add_argument('-o', '--output_prefix',
 
 parser_autodb.add_argument('-n', '--ncbi_date',
     type=checkDate,
-    default="2020-05-01",
+    default="2022-05-01",
     action='store',
-    help='The date of NCBI taxonomy to download. Must be of the form YYYY-05-MM. Default=2020-05-01.')
+    help='The date of NCBI taxonomy to download. Must be of the form YYYY-05-MM. Default=2022-05-01.')
 
 parser_autodb.add_argument('-m', '--mode_range',
     type=float,

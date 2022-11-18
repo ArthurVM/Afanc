@@ -57,11 +57,19 @@ class Tree(object):
 
         """
 
-        ## construct a list of all tip which exceed the local threshold in this clade
+        ## construct a list of all tips which exceed the local threshold in this clade
         tips = sorted([c for c in self.traverse() if c.clade_perc >= local_threshold][:-1], key=lambda x: x.clade_perc, reverse=True)
+        total_filtered_cladereads = sum([c.clade_reads for c in tips])
 
         for tip in tips:
+            ## assign the mother clade for this node tip
             tip.mother_clade = self
+
+            ## assign a filtered and unfiltered confidence for this node tip
+            ## Filtered confidence is the proportion of reads from nodes which pass the filter which were assigned to this taxa
+            ## Unfiltered confidence is the proportion of reads from all nodes at this level or lower which were assigned to this taxa
+            # tip.confidence = tip.taxa_reads/total_filtered_cladereads
+            # tip.un_confidence = tip.taxa_reads/tip.parent.clade_reads
 
         if return_all_nodes:
             ## return the full ordered list of nodes
@@ -76,6 +84,13 @@ class Tree(object):
             ## else return the base node
             else:
                 self.mother_clade = self
+
+                ## assign a filtered and unfiltered confidence for this node tip
+                ## Filtered confidence is the proportion of reads from nodes which pass the filter which were assigned to this taxa
+                ## Unfiltered confidence is the proportion of reads from all nodes at this level or lower which were assigned to this taxa
+                # self.confidence = self.taxa_reads/total_filtered_cladereads
+                # self.un_confidence = self.taxa_reads/self.parent.clade_reads
+
                 return self
 
     def traverse(self):

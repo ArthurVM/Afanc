@@ -1,1 +1,1 @@
-__version__="v0.7-alpha"
+__version__="0.8a-alpha"

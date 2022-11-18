@@ -37,10 +37,9 @@ def addTaxon(taxname, mother_clade_taxid, names_df, nodes_df):
     to the database.
     """
 
-    ## max_taxid increased by a factor of 10 to it's length - 1
-    ## this should avoid future conflicts
+    ## max_taxid increased by 1
     max_taxid = max(names_df[0])
-    taxid = max_taxid + ( 10**(len(str(max_taxid))-1) )
+    taxid = int(max_taxid + 1)
 
     ## hacky way of dealing with this, but anything above species level should not be getting introduced into the tax db anyway
     if taxname.count(" ")>1:
@@ -88,7 +87,7 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df):
     ## block for dealing with taxon missing from the ncbi taxonomy database
     if taxid == None:
 
-        print(f"Cannot find {taxname} in ncbi taxonomy database.")
+        # print(f"Cannot find {taxname} in ncbi taxonomy database.")
 
         ###  TAXADD BLOCK  ###
         ### IN DEVELOPMENT ###
@@ -97,13 +96,13 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df):
         if mother_clade != None:
             ## find taxid for the mother clade
             mother_clade_unformatted = mother_clade.replace("_", " ")
-            print(f"Attempting to find {mother_clade_unformatted} in ncbi taxonomy database...", end=" ")
+            # print(f"Attempting to find {mother_clade_unformatted} in ncbi taxonomy database...", end=" ")
             mother_taxid = search_taxon(mother_clade_unformatted, names_df)
 
             ## if no taxon exists for the mother clade, find taxid for the genus
             if mother_taxid == None:
                 genus = mother_clade.split("_")[0]
-                print(f"Attempting to find {genus} in ncbi taxonomy database...")
+                # print(f"Attempting to find {genus} in ncbi taxonomy database...")
                 genus_taxid = search_taxon(genus, names_df)
 
                 ## if the genus does not exist within the ncbi taxonomy database, then call a fail
@@ -112,18 +111,18 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df):
 
                 ## else if the genus does exist within the database, add both the mother and daughter taxa
                 else:
-                    print(f"Found {genus_taxid}.", end="\n")
+                    # print(f"Found {genus_taxid}.", end="\n")
                     mother_taxid, names_df, nodes_df = addTaxon(mother_clade_unformatted, genus_taxid, names_df, nodes_df)
                     taxid, names_df, nodes_df = addTaxon(taxname, mother_taxid, names_df, nodes_df)
 
             else:
-                print(f"Found {mother_taxid}.", end="\n")
+                # print(f"Found {mother_taxid}.", end="\n")
                 taxid, names_df, nodes_df = addTaxon(taxname, mother_taxid, names_df, nodes_df)
 
         ## if no mother clade is given, try to find the genus in the taxonomy database
         else:
             genus = taxname.split(" ")[0]
-            print(f"Attempting to find genus {genus} in ncbi taxonomy database...", end=" ")
+            # print(f"Attempting to find genus {genus} in ncbi taxonomy database...", end=" ")
             genus_taxid = search_taxon(genus, names_df)
 
             ## if the genus does not exist within the ncbi taxonomy database, then call a fail
@@ -132,7 +131,7 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df):
 
             ## else if the genus does exist within the database, add both the mother and daughter taxa
             else:
-                print(f"Found {genus_taxid}.", end="\n")
+                # print(f"Found {genus_taxid}.", end="\n")
                 taxid, names_df, nodes_df = addTaxon(taxname, genus_taxid, names_df, nodes_df)
 
 
