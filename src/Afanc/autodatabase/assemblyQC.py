@@ -15,7 +15,20 @@ def mash(args, taxon_id, fastas):
     """
 
     mashdist_out = path.abspath(f"{taxon_id}_mashdist.txt")
-    mash_sketchline = f"mash sketch -o ref {' '.join(fastas)}"
+
+    ## WORKING SKETCHBLOCK ##
+    # for fa in fastas:
+    #     mash_sketchline = f"mash sketch -o ref {fa}"
+    #     command(mash_sketchline, "MASH").run_comm_quiet(0, args.stdout, args.stderr)
+    #
+    # mash_distline = f"mash dist *msh> {mashdist_out}"
+    # command(mash_distline, "MASH").run_comm_quiet(0, args.stdout, args.stderr)
+
+    ## OLD SKETCHBLOCK ##
+    ## take only the first 1000 fastas for mash distance
+    ## this is to avoid max args OS errors
+    ## not ideal, but if large numbers of assemblies exist for a single tip level taxa, then it could be further split
+    mash_sketchline = f"mash sketch -o ref {' '.join(fastas[:500])}"
     mash_distline = f"mash dist ref.msh ref.msh > {mashdist_out}"
     command(mash_sketchline, "MASH").run_comm_quiet(0, args.stdout, args.stderr)
     command(mash_distline, "MASH").run_comm_quiet(0, args.stdout, args.stderr)
@@ -101,6 +114,6 @@ def fastaMove(args, calcArray, tax, modeVal, modeRange):
     # write to file list of high quality assemblies
     cleanList = str(tax[0]) + "_clean.txt"
     with open(cleanList, "w") as file_out:
-        for elem in cleanFasta:
-            move(elem, args.cleanFasta_WDir)
-            # file_out.write("%s\n" % elem)
+        for fasta in cleanFasta:
+            move(fasta, args.cleanFasta_WDir)
+            file_out.write(f"{fasta}\n")

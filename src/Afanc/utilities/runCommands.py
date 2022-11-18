@@ -33,11 +33,12 @@ class command():
     TODO: clean up this class
     """
     def __init__(self, command, subprocessID):
-        self.command = command
-        self.subprocessID = subprocessID
+        self.command = str(command)
+        self.subprocessID = str(subprocessID)
         # vprint(self.subprocessID, f"COMMAND={self.command}", "prYellow")
 
     def run(self, timeout = -1):
+
         kill_tree = True
 
         class Alarm(Exception):
@@ -97,6 +98,7 @@ class command():
     def run_comm_quiet(self, if_out_return, so=None, se=None, exit=True):
         """ Run the command quietly with or without an exit code
         """
+
         returncode, stdout, stderr = self.run(360000)
 
         ## capture stdout and stderr

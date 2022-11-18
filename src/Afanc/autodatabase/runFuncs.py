@@ -178,6 +178,7 @@ def makeK2db(args):
 def makeKronaChart(args):
     from Afanc.utilities.runCommands import command
 
+    ## TODO: Fix this module for custom taxonomy
     subprocessID = "KRONA"
     vprint(
         subprocessID,

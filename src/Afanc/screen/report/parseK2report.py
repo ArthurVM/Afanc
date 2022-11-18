@@ -3,7 +3,6 @@ from collections import defaultdict
 from os import path
 
 from Afanc.screen.tree import Tree
-from Afanc.utilities.generalUtils import gendbdict
 
 
 def parseK2line(line):
@@ -186,6 +185,10 @@ def parseK2reportMain(args, dbdict):
 
     base_nodes, root_node = readK2report(report_path)
     best_hits = find_best_hit(root_node, args.pct_threshold, args.num_threshold, args.local_threshold)
+
+    if len(best_hits) == 0:
+        return None
+
     out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, args.local_threshold, dbdict)
 
     return out_json

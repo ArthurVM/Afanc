@@ -1,4 +1,5 @@
 import pysam
+import sys
 from os import chdir, path, listdir, mkdir
 from collections import defaultdict
 
@@ -71,6 +72,15 @@ def getHits(args):
     chdir(args.reportsDir)
     out_json = parseK2reportMain(args, dbdict)
 
+    ## check if there were any hits
+    if out_json is None:
+        vprint(
+            "MAIN",
+            "No hits detected exceeding the given thresholds. Exiting...",
+            "prRed",
+        )
+        sys.exit(1)
+
     chdir(args.bt2WDir)
 
     ## GET GENOMES BRANCH
@@ -132,7 +142,7 @@ def map2Hits(args):
     accessions = {}
 
     for assembly in listdir(args.bt2WDir):
-        if assembly.endswith(".fna.gz") or assembly.endswith(".fna"):
+        if assembly.endswith(".fna.gz") or assembly.endswith(".fna") or assembly.endswith(".fa.gz") or assembly.endswith(".fa"):
             ## store accession assembly pairs
             tmp_acc = path.splitext(assembly)[0]
 
@@ -169,6 +179,11 @@ def map2Hits(args):
         ## store data in a dict for output as a json
         datadict = defaultdict(dict)
 
+        datadict["warnings"] = {}
+        datadict["input_data"]["reference"] = f"{args.bt2WDir}{bt2_index}"
+        datadict["input_data"]["fastq_1"] = f"{args.fastq[0]}"
+        datadict["input_data"]["fastq_2"] = f"{args.fastq[1]}"
+
         ## strip out genomic tag from the accession
         # if assembly.endswith("_genomic"):
         #      accession = assembly.split("_genomic")[0]
@@ -178,28 +193,32 @@ def map2Hits(args):
 
         ## calculate the depth at each covered position
         depthline = f"samtools depth {accession}.sorted.bam"
+
         depthstdout, depthstderr = command(depthline, "DEPTH").run_comm(1, None, args.stderr)
         covarray = [i.split('\t') for i in depthstdout.decode().split('\n')]
 
-        ## calculate genome size
-        genomesize = genomeSize(assembly)
+        ## check covarray is populated
+        if len(covarray) <= 1:
+            ## if not, then no reads map uniquely to this assembly
+            datadict["warnings"]["no_unique_map"] = f"No reads map uniquely to assembly {assembly}."
 
-        ## calculate the mean and median depth of coverage, NB this is only the DOC at covered positions, and does not include non-covered positions
-        meandoc = meanDOC(covarray)
-        mediandoc = medianDOC(covarray)
-        boc = breadthofCoverage(covarray, genomesize)
+        else:
+            ## if yes then continue with read distribution calculations
+            ## calculate genome size
+            genomesize = genomeSize(assembly)
 
-        ## calculate the Gini coefficient of distribution
-        gini_co = gini(covarray)
+            ## calculate the mean and median depth of coverage, NB this is only the DOC at covered positions, and does not include non-covered positions
+            meandoc = meanDOC(covarray)
+            mediandoc = medianDOC(covarray)
+            boc = breadthofCoverage(covarray, genomesize)
 
-        datadict["input_data"]["reference"] = f"{args.bt2WDir}{bt2_index}"
-        datadict["input_data"]["fastq_1"] = f"{args.fastq[0]}"
-        datadict["input_data"]["fastq_2"] = f"{args.fastq[1]}"
+            ## calculate the Gini coefficient of distribution
+            gini_co = gini(covarray)
 
-        datadict["map_data"]["mean_DOC"] = meandoc
-        datadict["map_data"]["median_DOC"] = mediandoc
-        datadict["map_data"]["proportion_cov"] = boc
-        datadict["map_data"]["gini"] = gini_co
+            datadict["map_data"]["mean_DOC"] = meandoc
+            datadict["map_data"]["median_DOC"] = mediandoc
+            datadict["map_data"]["proportion_cov"] = boc
+            datadict["map_data"]["gini"] = gini_co
 
         with open(f"{args.reportsDir}/{accession}.mapstats.json", 'w') as fout:
             json.dump(datadict, fout, indent = 4)
@@ -260,19 +279,26 @@ def makeFinalReport(args):
             with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:      ## TODO: sort out this line to make it more robust, i.e. remove _genomic
                 bt2data = json.load(bt2fin)
 
-                ## add fields to json dict
-                ## if there is a likely variant, add to that subdict
-                if variant_flag:
-                    event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                    event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
-                    event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                    event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
-                ## otherwise add to the base dict
+                ## check the that the no_unique_map warning doesnt exist
+                if "no_unique_map" not in bt2data["warnings"]:
+
+                    ## add fields to json dict
+                    ## if there is a likely variant, add to that subdict
+                    if variant_flag:
+                        event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                        event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
+                        event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                        event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
+                    ## otherwise add to the base dict
+                    else:
+                        event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                        event["median_DOC"] = bt2data["map_data"]["median_DOC"]
+                        event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                        event["gini"] = bt2data["map_data"]["gini"]
+
+                ## if it does, append it to the final report warnings
                 else:
-                    event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                    event["median_DOC"] = bt2data["map_data"]["median_DOC"]
-                    event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                    event["gini"] = bt2data["map_data"]["gini"]
+                    event["warnings"] = bt2data["warnings"]
 
                 ## initialise dictionary key
                 if "Detection_events" not in datadict:
