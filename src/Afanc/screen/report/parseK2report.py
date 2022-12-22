@@ -138,12 +138,12 @@ def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
 def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, local_threshold, dbdict):
     """ takes the results dict and generates a json report.
     {
-    F : [taxa1, taxa2, ..., taxan],
-    G : [taxa1, taxa2, ..., taxan],
-    S : [taxa1, taxa2, ..., taxan],
-    S1 : [taxa1, taxa2, ..., taxan],
+    F : [tax1, tax2, ..., taxn],
+    G : [tax1, tax2, ..., taxn],
+    S : [tax1, tax2, ..., taxn],
+    S1 : [tax1, tax2, ..., taxn],
     ...,
-    Sn : [taxa1, taxa2, ..., taxan]
+    Sn : [tax1, tax2, ..., taxn]
     }
     """
 
