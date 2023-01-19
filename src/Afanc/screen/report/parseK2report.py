@@ -108,33 +108,28 @@ def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
 
     best_hits = []
 
-    print(pct_threshold, num_threshold)
-
     ## find lowest level scoring nodes
     for node in root_node.traverse():
+        ## check if node scores above the pct_threshold
+        if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold and node.level_int >= 9:
+            # print(node.name, node.level_int, node.clade_perc, node.clade_reads)
+            ## construct scorebox then strip off the head node
+            scorebox = [ n.clade_perc for n in node.traverse() ][:-1]
 
-        if node.level_int >= 7:
-            print(node.name, node.level_int, node.clade_perc, node.clade_reads)
-            ## check if node scores above the pct_threshold
-            if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold:
-                # print(node.name, node.level_int, node.clade_perc, node.clade_reads)
-                ## construct scorebox then strip off the head node
-                scorebox = [ n.clade_perc for n in node.traverse() ][:-1]
-
-                ## check if any node in the box exceeds the pct_threshold
-                ## if so, the head node is not the lowest level node which exceeds pct_threshold on this branch
-                if any(score >= pct_threshold for score in scorebox):
-                    continue
-
-                ## else it is assumed to be the lowest level scoring node on this branch
-                else:
-                    ## find the local max for this scoring node
-                    top_hit = node.find_local_max(local_threshold)
-                    best_hits.append(top_hit)
-
-            else:
-                # print(colored(line, 'red'))
+            ## check if any node in the box exceeds the pct_threshold
+            ## if so, the head node is not the lowest level node which exceeds pct_threshold on this branch
+            if any(score >= pct_threshold for score in scorebox):
                 continue
+
+            ## else it is assumed to be the lowest level scoring node on this branch
+            else:
+                ## find the local max for this scoring node
+                top_hit = node.find_local_max(local_threshold)
+                best_hits.append(top_hit)
+
+        else:
+            # print(colored(line, 'red'))
+            continue
 
     return best_hits
 
