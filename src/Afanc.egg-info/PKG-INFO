@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: Afanc
+Version: 0.9.1a-alpha
+Summary: General purpose high-resolution metagenomics disambiguation.
+Home-page: https://github.com/ArthurVM/Afanc
+Author: Arthur V. Morris
+Author-email: morrisa28@cardiff.ac.uk
+License: MIT
+Platform: UNKNOWN
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: Unix
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Topic :: Utilities
+License-File: LICENSE
+
+Afanc High Resolution Metagenomics Disambiguation Toolkit.
+
+
