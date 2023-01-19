@@ -79,8 +79,6 @@ def getHits(args):
     chdir(args.reportsDir)
     out_json = parseK2reportMain(args, dbdict)
 
-    print("GOT HERE")
-
     ## check if there were any hits
     if out_json is None:
         vprint(
