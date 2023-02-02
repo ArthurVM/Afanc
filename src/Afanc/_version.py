@@ -1,1 +1,1 @@
-__version__="0.9a-alpha"
+__version__="0.9.2a"

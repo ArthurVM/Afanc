@@ -110,10 +110,9 @@ def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
 
     ## find lowest level scoring nodes
     for node in root_node.traverse():
-        # print(node.name, node.level_int, node.clade_perc, node.clade_reads)
         ## check if node scores above the pct_threshold
         if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold and node.level_int >= 9:
-
+            # print(node.name, node.level_int, node.clade_perc, node.clade_reads)
             ## construct scorebox then strip off the head node
             scorebox = [ n.clade_perc for n in node.traverse() ][:-1]
 

@@ -11,6 +11,7 @@ def runAutoDB(args):
     """ Run autodatabase pipeline
     """
     from Afanc.utilities.makeWD import initAutoDBDirStructure
+    from Afanc.utilities.get_versions import get_versions_autodatabase
 
     subprocessID = "MAIN"
     vprint(
@@ -27,6 +28,9 @@ def runAutoDB(args):
 
     fasta_db_path = args.fastaDir
 
+    ## capture python package and software versions for the autodatabase module in a JSON file
+    get_versions_autodatabase(args)
+    
     ## download ncbi taxonomy and preprocess fastas
     fasta_dict = preprocessing(args, fasta_db_path)
 

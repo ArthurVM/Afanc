@@ -29,17 +29,19 @@ def genScreenDirStructure(args):
     Generates files with a randomly generated run key, which is (probably) unique to this run.
 
     """
-    ## generates a unique run code to name directories, a bit hacky...
 
+    args.baseRunDir = path.abspath(isDir("./"))
+
+    ## generates a unique run code to name directories
     if args.run_key:
         ## generate the run directory using a randomly generated run key
         key = genKey()
         vprint(subprocessID, f"Run key for this run: {key}\n", "prYellow")
 
-        args.runWDir = path.join(isDir("./"), f"{args.output_prefix}.{key}")
+        args.runWDir = path.join(args.baseRunDir, f"{args.output_prefix}.{key}")
 
     else:
-        args.runWDir = path.join(isDir("./"), f"{args.output_prefix}")
+        args.runWDir = path.join(args.baseRunDir, f"{args.output_prefix}")
 
     vprint(
         subprocessID,
