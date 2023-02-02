@@ -1,3 +1,0 @@
-[console_scripts]
-afanc = Afanc.cli:main
-
