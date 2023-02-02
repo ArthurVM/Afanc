@@ -24,8 +24,8 @@ def genomeSize(fasta_file):
 
 
 def gini(depth_stdout, w=1):
-    """Calculates the Gini coefficient of a coverage array isolated from a coverage .bed file
-    Maps pretty well to A/(A+B) in its functionality, but effectively calculates Gini as the mean absolute difference.
+    """Calculates the Gini coefficient of a coverage array isolated from a coverage .bed file.
+    Equivalent to A/(A+B) in its functionality, but effectively calculates Gini as the mean absolute difference.
     """
     lines = [int(line[2]) for line in depth_stdout if len(line) == 3]
 
