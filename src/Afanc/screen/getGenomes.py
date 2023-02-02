@@ -81,7 +81,8 @@ def download_genome(assembly, stdout, stderr, taxID=False):
     ## check anything was found
     if len(ftp_dirs) == 0:
         print(f"{assembly} NOT FOUND ON GENBANK! SKIPPING...")
-        return 2
+
+        return None
 
     ## get first ftp directory
     ftp_dir = ftp_dirs[0]
@@ -96,10 +97,14 @@ def download_genome(assembly, stdout, stderr, taxID=False):
 
     if os.path.exists(outfile):
         print(f"FILE ALREADY EXISTS! SKIPPING...")
-        return 3
+
+        return outfile
+
     else:
         grepline = f"curl {ftp_dir}/{base}_genomic.fna.gz --output {outfile}"
         stdout, stderr = command(grepline, "DOWNLOAD_HITS").run_comm(1, stdout, stderr)
+
+        return outfile
 
 
 def getLocalGenomes(out_json, args):
@@ -124,8 +129,9 @@ def getLocalGenomes(out_json, args):
             ## check to see if there is variant information
             ## if so, make this the target
             if "closest_variant" in subdict:
-                taxID = str(subdict["closest_variant"]["taxon_id"])
-                assemblyID = subdict["closest_variant"]["name"]
+                subdict = subdict["closest_variant"]
+                taxID = str(subdict["taxon_id"])
+                assemblyID = subdict["name"]
 
             else:
                 taxID = str(subdict["taxon_id"])
@@ -142,10 +148,19 @@ def getLocalGenomes(out_json, args):
                 ## collect missing assemblies for unknown purpose
                 missing_assemblies.append(assemblyID)
 
-                download_genome(assemblyID, args.stdout, args.stderr, taxID)
+                assembly_path = download_genome(assemblyID, args.stdout, args.stderr, taxID)
 
             ## if the assembly can be found, copy to the bt2 working directory for bt2 db construction
             else:
                 assembly_path = path.join(args.cleanFasta, db_pathdict[taxID])
+
                 print(f"Copying {assembly_path}...")
                 shutil.copy(assembly_path, "./")
+
+            if not assembly_path == None:
+                subdict["assembly"] = assembly_path.split("/")[-1]
+            else:
+                subdict["assembly"] = assembly_path
+
+    with open(out_json, "w") as fout:
+        json.dump(json_data, fout, indent=4)

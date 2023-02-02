@@ -1,6 +1,8 @@
 import pysam
 import sys
-from os import chdir, path, listdir, mkdir
+from importlib.metadata import version
+from shutil import move, rmtree
+from os import chdir, path, listdir, mkdir, remove
 from collections import defaultdict
 
 from Afanc.utilities.runCommands import command
@@ -29,6 +31,9 @@ def runScreen(args):
 
     ## generate the final report
     final_report = makeFinalReport(args)
+
+    if args.clean or args.superclean:
+        final_report = clean_outdir(args, final_report)
 
     vprint("FINISHED", f"Final report can be found at {final_report}\n", "prGreen")
 
@@ -234,6 +239,8 @@ def makeFinalReport(args):
     import json
     from os import listdir
 
+    from Afanc.utilities.get_versions import get_versions_screen
+
     subprocessID = "REPORT"
     vprint(
         subprocessID,
@@ -244,12 +251,24 @@ def makeFinalReport(args):
     jsondict = defaultdict(dict)
 
     datadict = jsondict["results"] = {}
-    jsondict["arguments"] = { "database" : args.k2_database,
+
+    ## initialise dictionary key
+    if "Detection_events" not in datadict:
+        datadict["Detection_events"] = []
+
+    ## collect arguments
+    jsondict["arguments"] = {
+        "database" : args.k2_database,
         "fastqs" : args.fastq,
         "num_threshold" : args.num_threshold,
         "pct_threshold" : args.pct_threshold,
         "local_threshold" : args.local_threshold,
         "output_prefix" : args.output_prefix,
+    }
+
+    ## collect versions
+    jsondict["versions"] = {
+        "screen" : get_versions_screen()
     }
 
     ## collect k2 json reports
@@ -261,56 +280,91 @@ def makeFinalReport(args):
 
         for event in k2data["Detection_events"]:
 
-            ## horrible block to deal with most likely variants
+            ## initialise warnings
+            event["warnings"] = []
+
+            ## block to deal with most likely variants
             if "closest_variant" in event:
                 variant_flag = True
+                assembly = event["closest_variant"]["assembly"]
+                taxon_id = str(event["closest_variant"]["taxon_id"])
             else:
                 variant_flag = False
+                assembly = event["assembly"]
+                taxon_id = str(event["taxon_id"])
 
-            for report in bt2_reportsbox:
+            ## block dealing with hits which have an accompanying assembly which reads were mapped to
+            if not assembly == None:
 
-                if variant_flag:
-                    if str(event["closest_variant"]['taxon_id']) in report:
-                        report_json = report
+                ## find Bowtie2 report
+                ## NOTE: there should only ever be 1 element in this list, since taxon_id should be unique to each taxon
+                report_json = [report for report in bt2_reportsbox if report.startswith(taxon_id)][0]
 
-                else:
-                    if str(event['taxon_id']) in report:
-                        report_json = report
+                ## read Bowtie2 report
+                with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:
+                    bt2data = json.load(bt2fin)
 
-            ## read Bowtie2 report
-            with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:      ## TODO: sort out this line to make it more robust, i.e. remove _genomic
-                bt2data = json.load(bt2fin)
+                    ## check the that the no_unique_map warning doesnt exist
+                    if "no_unique_map" not in bt2data["warnings"]:
 
-                ## check the that the no_unique_map warning doesnt exist
-                if "no_unique_map" not in bt2data["warnings"]:
+                        ## add fields to json dict
+                        ## if there is a likely variant, add to that subdict
+                        if variant_flag:
+                            event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                            event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
+                            event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                            event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
 
-                    ## add fields to json dict
-                    ## if there is a likely variant, add to that subdict
-                    if variant_flag:
-                        event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                        event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
-                        event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                        event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
-                    ## otherwise add to the base dict
+                        ## otherwise add to the base dict
+                        else:
+                            event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
+                            event["median_DOC"] = bt2data["map_data"]["median_DOC"]
+                            event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
+                            event["gini"] = bt2data["map_data"]["gini"]
+
+                    ## if it does, append it to the final report warnings
                     else:
-                        event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                        event["median_DOC"] = bt2data["map_data"]["median_DOC"]
-                        event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                        event["gini"] = bt2data["map_data"]["gini"]
+                        event["warnings"].append(bt2data["warnings"])
 
-                ## if it does, append it to the final report warnings
-                else:
-                    event["warnings"] = bt2data["warnings"]
+            ## block dealing with hits which do not have an accompanying assembly
+            else:
+                event['warnings'].append(f"No assembly could be found for hit on {event['name']}.")
 
-                ## initialise dictionary key
-                if "Detection_events" not in datadict:
-                    datadict["Detection_events"] = []
+            datadict["Detection_events"].append(event)
 
-                datadict["Detection_events"].append(event)
-
-    final_report = path.abspath(f"./{args.output_prefix}.json")
+            final_report = path.abspath(f"./{args.output_prefix}.json")
 
     with open(final_report, "w") as fout:
         json.dump(jsondict, fout, indent = 4)
 
     return final_report
+
+
+def clean_outdir(args, final_report):
+    """ Cleans the output directory according to provided arguments.
+
+    clean : remove the bt2 working directory.
+    superclean : move the results JSON to ./ and remove the entire output directory
+    """
+
+    if args.clean:
+        ## check the bt2WDir exists
+        if path.isdir(args.bt2WDir):
+            rmtree(args.bt2WDir, ignore_errors=True)
+        else:
+            ## If it fails, inform the user.
+            print(f"Error: Could not remove{args.bt2WDir}, directory not found.")
+
+        return final_report
+
+    elif args.superclean:
+        ## check the root run directory exists
+        if path.isdir(args.runWDir):
+            new_final_report_path = path.join(args.baseRunDir, final_report.split("/")[-1])
+            move(final_report, new_final_report_path)
+            rmtree(args.runWDir, ignore_errors=True)
+        else:
+            ## If it fails, inform the user.
+            print(f"Error: Could not remove {args.runWDir}, directory not found.")
+
+        return new_final_report_path

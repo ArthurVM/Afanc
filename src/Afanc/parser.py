@@ -173,12 +173,25 @@ parser_screen.add_argument('-k', '--run_key',
 parser_screen.add_argument('-f', '--fetch_assemblies',
     default=False,
     action='store_true',
-    help='Fetch genome assemblies for species hits using from GenBank using the ENSEMBL software suite. Default=False; get assemblies from the autodb working directory.')
+    help='Fetch genome assemblies for species hits using from GenBank using the ENSEMBL software suite. Default=False; get assemblies from the autodb working directory where possible.')
 
 parser_screen.add_argument('-t', '--threads',
     type=int,
     default=4,
     action='store',
     help='Number of threads to used for this run. Default=4.')
+
+clean_group = parser_screen.add_mutually_exclusive_group()
+
+clean_group.add_argument('-c', '--clean',
+    default=False,
+    action='store_true',
+    help='Remove the bowtie2 working directory from the output directory. Default=False.')
+
+clean_group.add_argument('-s', '--superclean',
+    default=False,
+    action='store_true',
+    help='Delete the entire output directory, leaving only log files and the results .json. Default=False.')
+
 
 parser_screen.set_defaults(func=run_subtool)
