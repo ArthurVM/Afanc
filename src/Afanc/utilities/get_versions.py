@@ -22,6 +22,9 @@ def get_versions_autodatabase(args):
     mash_stdout, mash_stderr = command(f"mash --version", "GET-VERSIONS").run_comm_quiet(1)
     version_dict["mash"] = mash_stdout.decode().strip("\n")
 
+    mash_stdout, mash_stderr = command(f"fastANI -v", "GET-VERSIONS").run_comm_quiet(1)
+    version_dict["fastANI"] = mash_stdout.decode().strip("\n")
+
     k2_stdout, k2_stderr = command(f"kraken2 -v", "GET-VERSIONS").run_comm_quiet(1)
     version_dict["Kraken2"] = k2_stdout.decode().split("\n")[0].split("version ")[1]
 

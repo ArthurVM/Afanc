@@ -146,12 +146,6 @@ parser_screen.add_argument('-n', '--num_threshold',
     action='store',
     help='Min. coverage over the clade to score a hit, as no. of reads. Should be a positive integer. Default=1000.')
 
-parser_screen.add_argument('-l', '--local_threshold',
-    type=float,
-    default=1.0,
-    action='store',
-    help='Min. %% of reads to call a local hit. Decreasing this improves sensitivity but may result in false positive closest variant reporting. Default=1.0.')
-
 parser_screen.add_argument('-m', '--mapping_sensitivity',
     type=reformat_mapping_arg,
     default="very-sensitive",

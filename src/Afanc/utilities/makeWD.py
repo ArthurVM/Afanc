@@ -75,9 +75,10 @@ def initAutoDBDirStructure(args):
     """
     args.autoDB_WDir = path.abspath(f"./{args.output_prefix}")
     args.fasta_WDir = path.abspath(f"{args.autoDB_WDir}/selectFasta_autoDatabase_Fasta")
-    args.cleanFasta_WDir = path.abspath(f"{args.autoDB_WDir}/selectFasta_autoDatabase_cleanFasta")
     args.mash_WDir = path.abspath(f"{args.autoDB_WDir}/selectFasta_autoDatabase_mash")
     args.qc_WDir = path.abspath(f"{args.autoDB_WDir}/selectFasta_autoDatabase_qc")
+    args.cleanFasta_WDir = path.abspath(f"{args.autoDB_WDir}/selectFasta_autoDatabase_cleanFasta")
+    args.variant_index_WDir = path.abspath(f"{args.autoDB_WDir}/selectFasta_autoDatabase_variantIndex")
     args.kraken2_WDir = path.abspath(f"{args.autoDB_WDir}/krakenBuild_autoDatabase_kraken2Build")
     args.krona_WDir = path.abspath(f"{args.autoDB_WDir}/krakenBuild_autoDatabase_krona")
 
@@ -120,6 +121,16 @@ def checkautodbWD(args):
         )
         exit(4)
 
+    if "variant_index.json" in wd_box:
+        args.variant_index_path = path.join(args.database, "variant_index.json")
+    else:
+        vprint(
+            subprocessID,
+            f"variant_index.json not found in the autodatabase results directory! Exiting...",
+            "prRed",
+            sys.stderr,
+        )
+        exit(4)
 
 def mkchdir(dir, ch=True):
     """ make and change to a dir
