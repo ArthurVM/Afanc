@@ -1,8 +1,18 @@
 import json
 from collections import defaultdict
-from os import path
+from os import path, listdir
 
-from Afanc.screen.tree import Tree
+from Afanc.utilities.generalUtils import gendbdict
+from Afanc.screen.report.tree import Tree
+
+
+def read_variant_index(similarity_index):
+    """ Reads the similarity index json
+    """
+    with open(similarity_index, 'r') as fin:
+        variant_index = json.load(fin)
+
+    return variant_index["variant_index"]
 
 
 def parseK2line(line):
@@ -20,8 +30,8 @@ def parseK2line(line):
     #Extract relevant information
     clade_perc = float(sline[0])
     clade_reads =  int(sline[1])
-    taxa_reads = int(sline[2])
-    taxa_level = sline[-3]
+    taxon_reads = int(sline[2])
+    taxon_level = sline[-3]
     ncbi_taxID = int(sline[-2])
 
     #Get name and spaces
@@ -37,7 +47,7 @@ def parseK2line(line):
     #Determine which level based on number of spaces
     level_int = int(spaces/2)
 
-    return name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID
+    return name, level_int, clade_perc, clade_reads, taxon_reads, taxon_level, ncbi_taxID
 
 
 def readK2report(report):
@@ -54,14 +64,14 @@ def readK2report(report):
     with open(report, "r") as fin:
 
         for line in fin.readlines():
-            name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID = parseK2line(line)
+            name, level_int, clade_perc, clade_reads, taxon_reads, taxon_level, ncbi_taxID = parseK2line(line)
 
             if name == "unclassified":
                 continue
 
             ## handle tree root
             if ncbi_taxID == 1:
-                root_node = Tree(line, name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID)
+                root_node = Tree(line, name, level_int, clade_perc, clade_reads, taxon_reads, taxon_level, ncbi_taxID)
                 prev_node = root_node
 
                 base_nodes[ncbi_taxID] = root_node
@@ -72,15 +82,15 @@ def readK2report(report):
                 prev_node = prev_node.parent
 
             #determine correct level ID
-            if taxa_level == '-' or len(taxa_level) > 1:
-                if prev_node.taxa_level in main_lvls:
-                    taxa_level = prev_node.taxa_level + '1'
+            if taxon_level == '-' or len(taxon_level) > 1:
+                if prev_node.taxon_level in main_lvls:
+                    taxon_level = prev_node.taxon_level + '1'
                 else:
-                    num = int(prev_node.taxa_level[-1]) + 1
-                    taxa_level = prev_node.taxa_level[:-1] + str(num)
+                    num = int(prev_node.taxon_level[-1]) + 1
+                    taxon_level = prev_node.taxon_level[:-1] + str(num)
 
             #make node
-            curr_node = Tree(line, name, level_int, clade_perc, clade_reads, taxa_reads, taxa_level, ncbi_taxID, None, prev_node)
+            curr_node = Tree(line, name, level_int, clade_perc, clade_reads, taxon_reads, taxon_level, ncbi_taxID, None, prev_node)
             prev_node.add_child(curr_node)
             prev_node = curr_node
 
@@ -101,7 +111,7 @@ def get_local_max_list(branch_box):
     return set(best_hits)
 
 
-def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
+def find_best_hit(root_node, variant_index, pct_threshold, num_threshold):
     """ Find the lowest level nodes on each branch which are weighted greater than the weight threshold,
     then generate a set of local max weighting nodes for each node in branch_box.
     """
@@ -124,7 +134,7 @@ def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
             ## else it is assumed to be the lowest level scoring node on this branch
             else:
                 ## find the local max for this scoring node
-                top_hit = node.find_local_max(local_threshold)
+                top_hit = node.find_local_max(variant_index)
                 best_hits.append(top_hit)
 
         else:
@@ -134,7 +144,7 @@ def find_best_hit(root_node, pct_threshold, num_threshold, local_threshold):
     return best_hits
 
 
-def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, local_threshold, dbdict):
+def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, dbdict):
     """ takes the results dict and generates a json report.
     {
     F : [tax1, tax2, ..., taxn],
@@ -146,7 +156,7 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
     }
     """
 
-    taxa_level_key = { \
+    taxon_level_key = { \
     "P" : "Phylum",
     "C" : "Class",
     "O" : "Order",
@@ -156,9 +166,9 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
     "S" : "Species"
      }
 
-    out_json = f"{reportsDir}/{output_prefix}.k2.json"
+    out_json = f"./{output_prefix}.k2.json"
 
-    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold, "local_threshold" : local_threshold }, "Detection_events" : [] }
+    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold }, "Detection_events" : [] }
 
     ## create json report dict
     for node in branch_box:
@@ -182,12 +192,14 @@ def parseK2reportMain(args, dbdict):
     """ main function """
     report_path = f"{args.k2WDir}/{args.output_prefix}.k2.report.txt"
 
+    variant_index = read_variant_index(args.variant_index_path)
+
     base_nodes, root_node = readK2report(report_path)
-    best_hits = find_best_hit(root_node, args.pct_threshold, args.num_threshold, args.local_threshold)
+    best_hits = find_best_hit(root_node, variant_index, args.pct_threshold, args.num_threshold)
 
     if len(best_hits) == 0:
         return None
 
-    out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, args.local_threshold, dbdict)
+    out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, dbdict)
 
     return out_json

@@ -262,7 +262,6 @@ def makeFinalReport(args):
         "fastqs" : args.fastq,
         "num_threshold" : args.num_threshold,
         "pct_threshold" : args.pct_threshold,
-        "local_threshold" : args.local_threshold,
         "output_prefix" : args.output_prefix,
     }
 

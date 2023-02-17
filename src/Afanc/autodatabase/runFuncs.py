@@ -30,7 +30,7 @@ def runAutoDB(args):
 
     ## capture python package and software versions for the autodatabase module in a JSON file
     get_versions_autodatabase(args)
-    
+
     ## download ncbi taxonomy and preprocess fastas
     fasta_dict = preprocessing(args, fasta_db_path)
 
@@ -39,6 +39,9 @@ def runAutoDB(args):
 
     ## make the kraken2 database from the quality controlled assemblies
     makeK2db(args)
+
+    ## make the variant index from quality controlled assemblies
+    make_variant_index(args)
 
     ## make a Krona chart for pleasing visualisation
     makeKronaChart(args)
@@ -175,6 +178,32 @@ def makeK2db(args):
     ## remove massive unnecessary directories
     rmtree("./library")
     rmtree("./taxonomy")
+
+    chdir(args.autoDB_WDir)
+
+
+def make_variant_index(args):
+    """ Generates a variant index of parent child distances
+    """
+    from Afanc.autodatabase.makeVariantIndex import make_variant_index
+    from Afanc.screen.report.parseK2report import readK2report
+
+    subprocessID = "GEN-VARIANT-INDEX"
+    vprint(
+        subprocessID,
+        f"Calculating parent-child distances from quality controlled assemblies and generating a variant index...",
+        "prYellow"
+    )
+
+    mkchdir(args.variant_index_WDir)
+
+    database_txt = f"{args.kraken2_WDir}/database.txt"
+
+    relationship_dict = defaultdict(str)
+
+    base_nodes, root_node = readK2report(database_txt)
+
+    make_variant_index(args, base_nodes)
 
     chdir(args.autoDB_WDir)
 
