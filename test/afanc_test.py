@@ -58,7 +58,7 @@ def run_test(args):
             sys.exit(1)
 
         runline = f"afanc screen -o {prefix} {args.db} {fq1} {fq2} -c > {prefix}.log"
-        # print(runline)
+        print(runline)
 
         if not os.path.exists(prefix):
             subprocess.call(runline, shell=True)
