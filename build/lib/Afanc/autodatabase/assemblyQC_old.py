@@ -107,5 +107,3 @@ def fastaMove(args, calcArray, tax, modeVal, modeRange):
         for fasta in cleanFasta:
             move(fasta, args.cleanFasta_WDir)
             file_out.write(f"{fasta}\n")
-
-    return [f.replace(args.fasta_WDir, args.cleanFasta_WDir) for f in cleanFasta]
