@@ -162,15 +162,12 @@ def getLocalGenomes(out_json, args):
                 taxID = str(subdict["taxon_id"])
                 assemblyID = subdict["name"]
 
-                print(taxID, assemblyID)
-
             else:
                 taxID = str(subdict["taxon_id"])
                 assemblyID = subdict["name"]
 
             species_ID = assemblyID.replace(" ", "_")
 
-            print(assembly_dict)
             ## copy assembly to the bt2 working directory for bt2 db construction
             if taxID in assembly_dict:
                 assembly_path = assembly_dict[taxID][0]

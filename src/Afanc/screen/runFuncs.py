@@ -203,7 +203,7 @@ def makeFinalReport(args, variant_profile, reports):
     import json
     from os import listdir
 
-    from Afanc.utilities.get_versions import get_versions_screen
+    from Afanc.utilities.getVersions import get_versions_screen
 
     subprocessID = "REPORT"
     vprint(
