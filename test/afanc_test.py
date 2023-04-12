@@ -58,7 +58,7 @@ def run_test(args):
             sys.exit(1)
 
         runline = f"afanc screen -o {prefix} -v {args.variants} {args.db} {fq1} {fq2} -c > {prefix}.log"
-        # print(runline)
+        print(runline)
 
         if not os.path.exists(prefix):
             subprocess.call(runline, shell=True)
@@ -142,22 +142,24 @@ def get_cluster_hits(hits, truth_val):
     names_box = [name for (name, perc) in cluster_box]
 
     if len(cluster_box) == 1:
+        tophit = cluster_box[0][0].split(" (")[0]
         ## return a PASS if there is only 1 hit and it is the truth value
-        if cluster_box[0][0] == truth_val:
+        if tophit == truth_val:
             return "PASS", cluster_box[0][0]
         ## return a T3 INNACURACY if there is only 1 hit and the species matches the species of the truth value
-        elif " ".join(cluster_box[0][0].split(" ")[:2]) == " ".join(truth_val.split(" ")[:2]):
+        elif " ".join(tophit.split(" ")[:2]) == " ".join(truth_val.split(" ")[:2]):
             return "TYPE-3 INNACURACY", cluster_box[0][0]
         ## return a FAIL if there is only 1 hit and it does not match the truth value or its broader species
         else:
             return "FAIL", cluster_box[0][0]
 
     elif len(cluster_box) > 1:
+        tophit = cluster_box[0][0].split(" (")[0]
         ## return a T1 INNACURACY if there are multiple hits but the top one matches the truth value
-        if cluster_box[0][0] == truth_val:
+        if tophit == truth_val:
             return "TYPE-1 INNACURACY", ",".join(names_box)
         ## return a T4 INNACURACY if there are multiple hits but the species of the top one matches the species of truth value
-        elif " ".join(cluster_box[0][0].split(" ")[:2]) == " ".join(truth_val.split(" ")[:2]):
+        elif " ".join(tophit.split(" ")[:2]) == " ".join(truth_val.split(" ")[:2]):
             return "TYPE-4 INNACURACY", ",".join(names_box)
         ## return a T2 INNACURACY if there are multiple hits and one of the non-top hits matches the truth value
         elif truth_val in names_box:

@@ -53,4 +53,7 @@ def get_versions_screen():
     bt2_stdout, bt2_stderr = command(f"bowtie2 --version", "GET-VERSIONS").run_comm_quiet(1)
     version_dict["Bowtie2"] = bt2_stdout.decode().split("\n")[0].split("version ")[1]
 
+    fastANI_stdout, fastANI_stderr = command(f"fastANI -v", "GET-VERSIONS").run_comm_quiet(1)
+    version_dict["fastANI"] = fastANI_stderr.decode().split("\n")[0].split("version ")[1]
+
     return version_dict
