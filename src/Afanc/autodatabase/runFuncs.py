@@ -3,16 +3,16 @@ from shutil import move, rmtree
 from os import mkdir, chdir, path, listdir, rename, getcwd, remove
 from collections import defaultdict
 
-from Afanc.utilities.runCommands import command
-from Afanc.utilities.generalUtils import vprint
-from Afanc.utilities.makeWD import mkchdir
+from ..utilities.runCommands import command
+from ..utilities.generalUtils import vprint
+from ..utilities.makeWD import mkchdir
 
 
 def runAutoDB(args):
     """ Run autodatabase pipeline
     """
-    from Afanc.utilities.makeWD import initAutoDBDirStructure
-    from Afanc.utilities.get_versions import get_versions_autodatabase
+    from ..utilities.makeWD import initAutoDBDirStructure
+    from ..utilities.getVersions import get_versions_autodatabase
 
     subprocessID = "MAIN"
     vprint(
@@ -61,8 +61,8 @@ def preprocessing(args, fasta_db_path):
     """ Download NCBI taxonomy and add taxa to nodes and names files
     """
 
-    from Afanc.autodatabase.prepareNewFasta import getTaxonomy
-    from Afanc.autodatabase.taxadd import taxadd_Main
+    from .prepareNewFasta import getTaxonomy
+    from .taxadd import taxadd_Main
 
     subprocessID = "PREPROCESSING"
     vprint(
@@ -90,8 +90,8 @@ def preprocessing(args, fasta_db_path):
 def assemblyQC(args, fasta_dict, mapping_dict):
     """ Perform QC on assemblies using MASH then move high quality assemblies to the cleanFasta directory
     """
-    from Afanc.autodatabase.assemblyQC import mash, buildMatrix, fastaMove
-    from Afanc.autodatabase.makeFastaDirJSON import make_fasta_dir_JSON
+    from .assemblyQC import mash, buildMatrix, fastaMove
+    from .makeFastaDirJSON import make_fasta_dir_JSON
 
     subprocessID = "QC"
     vprint(
@@ -135,13 +135,13 @@ def assemblyQC(args, fasta_dict, mapping_dict):
 
         ## if the number of samples < 3 then continue
         if calcArray is None:
-            db_assemblies[mapping_dict[str(taxon_id)]] = [f.replace(args.fasta_WDir, args.cleanFasta_WDir) for f in fastas]
+            db_assemblies[taxon_id] = [f.replace(args.fasta_WDir, args.cleanFasta_WDir) for f in fastas]
             continue
 
         ## select the best assembly using minhash distance
         clean_fastas = fastaMove(args, calcArray, tax, centroid, capture_range)
 
-        db_assemblies[mapping_dict[str(taxon_id)]] = clean_fastas
+        db_assemblies[taxon_id] = clean_fastas
 
     chdir(args.autoDB_WDir)
 
@@ -152,7 +152,8 @@ def assemblyQC(args, fasta_dict, mapping_dict):
 
 
 def makeK2db(args):
-    from Afanc.utilities.runCommands import command
+
+    from ..utilities.runCommands import command
 
     subprocessID = "MAKE_K2_DB"
     vprint(
@@ -205,8 +206,8 @@ def makeK2db(args):
 def make_variant_index(args):
     """ Generates a variant index of parent child distances
     """
-    from Afanc.autodatabase.makeVariantIndex import make_variant_index
-    from Afanc.screen.report.parseK2report import readK2report
+    from .makeVariantIndex import make_variant_index
+    from ..screen.report.parseK2report import readK2report
 
     subprocessID = "GEN-VARIANT-INDEX"
     vprint(
@@ -229,7 +230,8 @@ def make_variant_index(args):
 
 
 def makeKronaChart(args):
-    from Afanc.utilities.runCommands import command
+
+    from ..utilities.runCommands import command
 
     ## TODO: Fix this module for custom taxonomy
     subprocessID = "KRONA"

@@ -215,7 +215,7 @@ class Bam:
         """
 
         def check_variant(loc_depths_tup):
-            """ checks a the profile for a single variant and calculates the variant probabilities
+            """ checks the profile for a single variant and calculates the variant probabilities
             """
             loc_depths_box = []
             for chr, pos, description, [ref_d, alt_d] in loc_depths_tup:

@@ -173,6 +173,8 @@ def getLocalGenomes(out_json, args):
                 assembly_path = assembly_dict[taxID][0]
             elif species_ID in assembly_dict:
                 assembly_path = assembly_dict[species_ID][0]
+            else:
+                print(taxID, species_ID)
 
             print(f"Copying {assembly_path}...")
             shutil.copy(assembly_path, "./")
