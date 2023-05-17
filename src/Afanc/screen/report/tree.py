@@ -277,7 +277,7 @@ class Tree(object):
             at a species level or higher (and therefore there exists no genome to calculate distance from).
             The lower bound threshold weight for orphan nodes is simply
 
-                (sI(c) - sP(c)) / 100
+                (sI(c) - sP(c)) / 10
 
             where sP(n) is the mean parent-child similarity of taxon at node n.
             """
