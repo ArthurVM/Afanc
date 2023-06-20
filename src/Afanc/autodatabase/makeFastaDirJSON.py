@@ -15,6 +15,9 @@ def make_fasta_dir_JSON(fasta_dir):
             continue
 
         taxon = path.basename(dir)
+
+        ## remove base paths
+        filenames = [path.basename(f) for f in files]
         json_dict[taxon] = files
 
     with open("assemblies.json", "w") as fout:

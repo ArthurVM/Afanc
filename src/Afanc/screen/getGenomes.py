@@ -12,7 +12,7 @@ import json
 from collections import defaultdict
 from os import path
 
-from Afanc.utilities.runCommands import command
+from ..utilities.runCommands import command
 
 
 def getAccessions(report, dbdict):
@@ -128,7 +128,7 @@ def getLocalGenomes(out_json, args):
     """ if args.fetch_assemblies is False, get genomes from the autodatabase results directory:
             autodb_results/selectFasta_autoDatabase_cleanFasta/
     """
-    from Afanc.utilities.runCommands import command
+    from ..utilities.runCommands import command
 
     with open(args.db_fastas_json, "r") as fin:
         assembly_dict = json.load(fin)
@@ -170,9 +170,9 @@ def getLocalGenomes(out_json, args):
 
             ## copy assembly to the bt2 working directory for bt2 db construction
             if taxID in assembly_dict:
-                assembly_path = assembly_dict[taxID][0]
+                assembly_path = path.join(args.cleanFasta, assembly_dict[taxID][0])
             elif species_ID in assembly_dict:
-                assembly_path = assembly_dict[species_ID][0]
+                assembly_path = path.join(args.cleanFasta, assembly_dict[species_ID][0])
             else:
                 print(taxID, species_ID)
 

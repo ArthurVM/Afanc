@@ -5,7 +5,7 @@ import sys
 import random, string
 from os import mkdir, path, listdir, chdir
 
-from Afanc.utilities.generalUtils import isDir, vprint
+from .generalUtils import isDir, vprint
 
 subprocessID = "MAIN"
 

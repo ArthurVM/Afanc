@@ -54,11 +54,11 @@ def run_test(args):
         elif fq1.endswith("fastq.gz"):
             prefix = os.path.basename(fq1).split("_1.fastq.gz")[0]
         else:
-            print("FASTQ files must end with either .fq.gz or .fastq.gz. Exiting.")
+            print(f"Error at {fq1} {fq2} {truth_val}. FASTQ files must end with either .fq.gz or .fastq.gz. Exiting.")
             sys.exit(1)
 
-        runline = f"afanc screen -o {prefix} -v {args.variants} {args.db} {fq1} {fq2} -c > {prefix}.log"
-        print(runline)
+        runline = f"afanc screen -o {prefix} -v {args.variants} -n 10 {args.db} {fq1} {fq2} -c > {prefix}.log"
+        # print(runline)
 
         if not os.path.exists(prefix):
             subprocess.call(runline, shell=True)
