@@ -7,7 +7,7 @@ from collections import defaultdict
 from scipy.stats import mode
 from os import path, mkdir, chdir, listdir
 
-from Afanc.utilities.runCommands import command
+from ..utilities.runCommands import command
 
 
 def mash(args, taxon_id, fastas):

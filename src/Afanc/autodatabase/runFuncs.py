@@ -135,13 +135,15 @@ def assemblyQC(args, fasta_dict, mapping_dict):
 
         ## if the number of samples < 3 then continue
         if calcArray is None:
-            db_assemblies[taxon_id] = [f.replace(args.fasta_WDir, args.cleanFasta_WDir) for f in fastas]
+            db_assemblies[taxon_id] = [path.basename(f) for f in fastas]
             continue
 
         ## select the best assembly using minhash distance
         clean_fastas = fastaMove(args, calcArray, tax, centroid, capture_range)
 
-        db_assemblies[taxon_id] = clean_fastas
+        ## remove base paths
+        filenames = [path.basename(f) for f in clean_fastas]
+        db_assemblies[taxon_id] = filenames
 
     chdir(args.autoDB_WDir)
 

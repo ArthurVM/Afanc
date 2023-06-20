@@ -28,9 +28,9 @@ class Bam:
 
         variant_profile, variant_rows, snp_box = self._get_variant_profile(bam_profile, variants_bed)
 
-        top_variants = self._calc_variant_profile(variant_profile, variant_rows)
+        top_variants, variant_mutations = self._calc_variant_profile(variant_profile, variant_rows)
 
-        self._make_json(top_variants, ref_file, variants_bed)
+        self._make_json(top_variants, variant_mutations, ref_file, variants_bed)
 
         return top_variants
 
@@ -231,6 +231,9 @@ class Bam:
 
         top_variants = defaultdict(dict)
 
+        ## capture ref/alt coverage for each variant defining position for this sample
+        variant_mutations = defaultdict(lambda : defaultdict(dict))
+
         for var_ID, loc_depths_tup in variant_profile.items():
             ## calculate the probability of the variant allele at this position
             # variant_probs = [ alt_d/(ref_d+alt_d) for ref_d, alt_d in depths if ref_d+alt_d >= min_reads ]
@@ -241,6 +244,10 @@ class Bam:
             variant_depths = [d for _, _, _, d, _ in loc_depths_box]
             if sum(variant_probs) == 0.0:
                 continue
+
+            for chr, pos, desc, depths, prob in loc_depths_box:
+                variant_mutations[var_ID]["allele_frequency"] = sum(variant_probs)/len(variant_probs)
+                variant_mutations[var_ID][chr][pos] = {"mutation_probability" : prob, "ref_depth" : depths[0], "alt_depth" : depths[1]}
 
             ## handle missing or singular datasets and calculate stdev of allelic probs
             if len(variant_probs) == 0:
@@ -267,19 +274,22 @@ class Bam:
             ## capture description fields in the variants bed file
             allele_data = defaultdict(lambda : defaultdict(dict))
             for chr, pos, description, [ref_d, alt_d], variant_prob in loc_depths_box:
-                allele_data[chr][pos] = {"variant_probability" : variant_prob, "reference_depth" : ref_d, "alt_depth" : alt_d, "description" : description }
+                allele_data[chr][pos] = {"mutation_probability" : variant_prob, "ref_depth" : ref_d, "alt_depth" : alt_d, "description" : description }
 
             ## capture top variants
             top_variants[var_ID] = {"allele_frequency" : alt_prob, "allele_info" : allele_data}
                 # print(var_ID, chr, pos, ref_d, alt_d)
 
-        return top_variants
+        return top_variants, variant_mutations
 
 
-    def _make_json(self, top_variants, ref_file, variants_bed):
+    def _make_json(self, top_variants, variant_mutations, ref_file, variants_bed):
         """ Generates a JSON file containing results from variant profiling.
         """
         json_data = { "bam_file" : self.bam_file, "reference" : ref_file, "variants_bed" : variants_bed, "phylogenetics" : top_variants }
 
         with open(f"{self.prefix}.afanc-profile.json", "w") as fout:
             json.dump(json_data, fout, indent=4)
+
+        with open(f"{self.prefix}.variant_report.json", "w") as fout:
+            json.dump(variant_mutations, fout, indent=4)

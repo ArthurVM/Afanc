@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 from importlib.metadata import version
 
-from Afanc.utilities.runCommands import command
+from .runCommands import command
 
 
 def get_versions_autodatabase(args):
