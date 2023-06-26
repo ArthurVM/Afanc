@@ -60,6 +60,9 @@ def readK2report(report):
 
     main_lvls = ['R','K','D','P','C','O','F','G','S']
 
+    ## initialise an empty root_node
+    ## instances where the wrong database is used will throw an error since a root node may not be present in the kraken2 report
+    root_node = None
     base_nodes = {}
     prev_node = -1
 
@@ -222,13 +225,18 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
 def parseK2reportMain(args, dbdict):
     """ main function """
     report_path = f"{args.k2WDir}/{args.output_prefix}.k2.report.txt"
-    
+
     if not path.exists(report_path):
         return None
 
     variant_index = read_variant_index(args.variant_index_path)
 
     base_nodes, root_node = readK2report(report_path)
+
+    ## escape if there i no root node present in the kraken2 report file
+    if root_node == None:
+        return None
+
     commute_reads(args, root_node, variant_index, args.pct_threshold, args.num_threshold)
 
     best_hits = find_best_hit(root_node, variant_index, args.pct_threshold, args.num_threshold)
