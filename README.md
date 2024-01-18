@@ -5,7 +5,7 @@
 | Author  | Arthur Morris ([ArthurVM](https://github.com/ArthurVM/)) |
 |         | Anna Price ([annacprice](https://github.com/annacprice/)) |
 | Email   | <arthurvmorris@gmail.com> |
-| License | [MIT](https://opensource.org/licenses/MIT) |
+| License | [GNU GPL v3.0](https://opensource.org/license/gpl-3-0/) |
 
 ## Description
 A toolkit for performing variant level metageonomics disambiguation of NGS reads.
