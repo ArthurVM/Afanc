@@ -20,16 +20,41 @@ def run_subtool(args):
     if args.command == "get_dataset":
         ## get a dataset from genbank and generate a directory structure which can be used by autodatabase
         from Afanc.get_dataset.download_assemblies import runGet_dataset
+
+        splash = f"""
+        RUNNING GET_DATASET
+        ===================
+
+        """
+        print(splash, file=args.stdout)
+        print(splash, file=args.stderr)
+
         runGet_dataset(args)
 
     elif args.command == "autodatabase":
         ## run autodatabase from a fasta directory structure
         from Afanc.autodatabase.runFuncs import runAutoDB
+        splash = f"""
+        RUNNING AUTODATABASE
+        ====================
+
+        """
+        print(splash, file=args.stdout)
+        print(splash, file=args.stderr)
+
         runAutoDB(args)
 
     elif args.command == "screen":
         ## screen fastq using a database
         from Afanc.screen.runFuncs import runScreen
+        splash = f"""
+        RUNNING SCREEN
+        ==============
+
+        """
+        print(splash, file=args.stdout)
+        print(splash, file=args.stderr)
+
         runScreen(args)
 
 
@@ -222,5 +247,10 @@ clean_group.add_argument('-s', '--superclean',
     default=False,
     action='store_true',
     help='Delete the entire output directory, leaving only log files and the results .json. Default=False.')
+
+clean_group.add_argument('-a', '--no_map',
+    default=False,
+    action='store_true',
+    help='Only perform metagenomic screening, do not proceed to mapping or variant calling. Default=False.')
 
 parser_screen.set_defaults(func=run_subtool)

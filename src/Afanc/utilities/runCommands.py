@@ -77,13 +77,18 @@ class command():
         """
         print(f"COMMAND={self.command}")
 
+        if so != None:
+            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=so, flush=True)
+        if se != None:
+            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=se, flush=True)
+
         returncode, stdout, stderr = self.run(360000)
 
         ## capture stdout and stderr
         if so != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n{stdout.decode()}\n", file=so)
+            print(f"{stdout.decode()}\n", file=so, flush=True)
         if se != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n{stderr.decode()}\n", file=se)
+            print(f"{stderr.decode()}\n", file=se, flush=True)
 
         if returncode and stderr:
             vprint(self.subprocessID, f"{self.command} failed. Please check the log files to work out what went wrong.", "prRed")
@@ -99,13 +104,18 @@ class command():
         """ Run the command quietly with or without an exit code
         """
 
+        if so != None:
+            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=so, flush=True)
+        if se != None:
+            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=se, flush=True)
+
         returncode, stdout, stderr = self.run(360000)
 
         ## capture stdout and stderr
         if so != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n{stdout.decode()}\n", file=so)
+            print(f"{stdout.decode()}\n", file=so, flush=True)
         if se != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n{stderr.decode()}\n", file=se)
+            print(f"{stderr.decode()}\n", file=se, flush=True)
 
         if returncode and stderr:
             print(f"STDOUT :\n{stdout.decode()}\nSTDERR :\n{stderr.decode()}\n")

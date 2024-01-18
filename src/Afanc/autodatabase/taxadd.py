@@ -20,7 +20,6 @@ def editFasta(infasta, outdir, taxid, taxname):
     fasta_fout = open(fasta_file, "w")
 
     ## edit the headers in each fasta file then output with the taxID
-
     for rec in SeqIO.parse(fasta_fin, "fasta"):
         header = f">{rec.id}|kraken:taxid|{taxid} {taxname}\n"
         fasta_fout.write(header)

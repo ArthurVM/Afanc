@@ -53,6 +53,10 @@ def run_test(args):
             prefix = os.path.basename(fq1).split("_1.fq.gz")[0]
         elif fq1.endswith("fastq.gz"):
             prefix = os.path.basename(fq1).split("_1.fastq.gz")[0]
+        elif fq1.endswith("fastq"):
+            prefix = os.path.basename(fq1).split("_1.fastq")[0]
+        elif fq1.endswith("fq"):
+            prefix = os.path.basename(fq1).split("_1.fq")[0]
         else:
             print(f"Error at {fq1} {fq2} {truth_val}. FASTQ files must end with either .fq.gz or .fastq.gz. Exiting.")
             sys.exit(1)
