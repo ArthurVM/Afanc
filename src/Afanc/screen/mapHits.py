@@ -125,7 +125,7 @@ def parse_sam_lines(args, tmp_sam, accession):
             fout.write(new_read)
 
     sortline = f"samtools view -bh {accession}.sam | samtools sort - > {sorted_bam}"
-    stdout, stderr = command(sortline, "MAP").run_comm(1, args.stdout, args.stderr)
+    command(sortline, "MAP").run_comm(0, args.stdout, args.stderr)
 
     ## remove large sam files
     remove(tmp_sam)
@@ -164,7 +164,7 @@ def run_map(args, bt2_index, assemblies_for_mapping):
         ## grep out SAM lines for each accession
         # grepline = f"grep '{accession}' Hits.sam | samtools view -bh - | samtools sort - > {sorted_bam}"
         grepline = f"grep '{accession}' Hits.sam > '{accession}'.tmp.sam"
-        command(grepline, "MAP").run_comm_quiet(0)
+        command(grepline, "MAP").run_comm_quiet(0, args.stdout, args.stderr)
 
         ## strip out the accession grep flags from the SAM lines and convert to sorted BAM
         mapped_reads = stdout.decode()

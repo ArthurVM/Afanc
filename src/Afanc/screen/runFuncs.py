@@ -20,10 +20,15 @@ def runScreen(args):
     checkautodbWD(args)
 
     ## screen with kraken2
-    runKraken2(args)
+    out_json = runFPScreen(args)
+
+    ## if no_map is True then exit Afanc screen
+    if args.no_map:
+        vprint("FINISHED", f"no_map mode finished. Metagenomic report can be found in {out_json}\n", "prGreen")
+        return 0
 
     ## parse kraken2 report to a json
-    hits_json, variant_species = getHits(args)
+    hits_json, variant_species = getHits(args, out_json)
 
     ## map to my genomes
     variant_bams, reports = map2Hits(args, variant_species)
@@ -43,10 +48,14 @@ def runScreen(args):
 
     vprint("FINISHED", f"Final report can be found at {final_report}\n", "prGreen")
 
+    return 0
 
-def runKraken2(args):
+def runFPScreen(args):
     """ run kraken2 on query fqs with using the database
     """
+    from .report.parseK2report import parseK2reportMain
+    from Afanc.utilities.generalUtils import gendbdict
+
     subprocessID="KRAKEN"
 
     chdir(args.k2WDir)
@@ -66,17 +75,7 @@ def runKraken2(args):
      --report {args.output_prefix}.k2.report.txt \
      --paired {' '.join(args.fastq)}"
 
-    stdout, stderr = command(runline, "KRAKEN").run_comm(1, args.stdout, args.stderr)
-
-    chdir(args.runWDir)
-
-
-def getHits(args):
-    """ parses the kraken2 report and then gets assemblies pertaining to identified species
-    """
-    from .report.parseK2report import parseK2reportMain
-    from .getGenomes import getAccessions, getGenomesbyAcc, getGenomesbyName, getLocalGenomes, get_hitIDs
-    from Afanc.utilities.generalUtils import gendbdict
+    command(runline, "KRAKEN").run_comm(0, args.stdout, args.stderr)
 
     ## generate the taxID database dictionary from the autodatabase cleanFasta directory
     dbdict = gendbdict(args.cleanFasta)
@@ -94,28 +93,19 @@ def getHits(args):
         )
         exit(1)
 
-    chdir(args.bt2WDir)
+    chdir(args.runWDir)
 
-    ## GET GENOMES BRANCH
-    ## branch for dealing with how hit genomes are fetched: local using the autodb results dir,
-    ## or from genbank using the ensembl suite
+    return out_json
 
-    # if args.fetch_assemblies:
-    #     ## download hits from Genbank
-    #     ## TODO : this branch is broken and results in a malformed results JSON
-    #     ## DISABLED BRANCH
-    #     subprocessID="DOWNLOADING_HITS"
-    #
-    #     vprint(
-    #         subprocessID,
-    #         "Downloading assemblies from Genbank...",
-    #         "prYellow",
-    #     )
-    #     assembly_ids = get_hitIDs(out_json)
-    #     assembly_dict = getGenomesbyName(assembly_ids, args)
 
-    ## get genomes from autodatabase results directory: /selectFasta_autoDatabase_cleanFasta/
+def getHits(args, out_json):
+    """ parses the kraken2 report and then gets assemblies pertaining to identified species
+    """
+    from .getGenomes import getAccessions, getGenomesbyAcc, getGenomesbyName, getLocalGenomes, get_hitIDs
+
     subprocessID="GET_HITS"
+
+    chdir(args.bt2WDir)
 
     vprint(
         subprocessID,
