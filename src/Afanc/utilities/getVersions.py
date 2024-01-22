@@ -5,7 +5,7 @@ from importlib.metadata import version
 from .runCommands import command
 
 
-def get_versions_autodatabase(args):
+def getVersionsAutodatabase(args):
     """ get python package and software versions for afanc-autodatabase
     """
 
@@ -34,7 +34,7 @@ def get_versions_autodatabase(args):
         json.dump({ "afanc-autodatabase_versions" : version_dict }, fout, indent = 4)
 
 
-def get_versions_screen():
+def getVersionsScreen():
     """ Gets python package and softeware versions for afanc-screen
     """
 

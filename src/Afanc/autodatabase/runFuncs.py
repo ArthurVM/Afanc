@@ -12,7 +12,7 @@ def runAutoDB(args):
     """ Run autodatabase pipeline
     """
     from ..utilities.makeWD import initAutoDBDirStructure
-    from ..utilities.getVersions import get_versions_autodatabase
+    from ..utilities.getVersions import getVersionsAutodatabase
 
     subprocessID = "MAIN"
     vprint(
@@ -30,7 +30,7 @@ def runAutoDB(args):
     fasta_db_path = args.fastaDir
 
     ## capture python package and software versions for the autodatabase module in a JSON file
-    get_versions_autodatabase(args)
+    getVersionsAutodatabase(args)
 
     ## download ncbi taxonomy and preprocess fastas
     fasta_dict, mapping_dict = preprocessing(args, fasta_db_path)
@@ -42,13 +42,13 @@ def runAutoDB(args):
     makeK2db(args)
 
     ## make the variant index from quality controlled assemblies
-    make_variant_index(args)
+    makeVariantIndex(args)
 
     ## make a Krona chart for pleasing visualisation
     makeKronaChart(args)
 
     ## clean the output directory
-    clean_outdir(args)
+    cleanOutdir(args)
 
     vprint(
         "FINISHED",
@@ -205,7 +205,7 @@ def makeK2db(args):
     chdir(args.autoDB_WDir)
 
 
-def make_variant_index(args):
+def makeVariantIndex(args):
     """ Generates a variant index of parent child distances
     """
     from .makeVariantIndex import make_variant_index
@@ -251,7 +251,7 @@ def makeKronaChart(args):
     chdir(args.autoDB_WDir)
 
 
-def clean_outdir(args):
+def cleanOutdir(args):
     """ Cleans the output directory according to provided arguments.
 
     clean : remove the mash working directory.

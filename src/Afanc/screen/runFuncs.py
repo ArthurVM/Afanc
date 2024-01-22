@@ -24,7 +24,8 @@ def runScreen(args):
 
     ## if no_map is True then exit Afanc screen
     if args.no_map:
-        vprint("FINISHED", f"no_map mode finished. Metagenomic report can be found in {out_json}\n", "prGreen")
+        final_report = makeFinalReport(args, None, None)
+        vprint("FINISHED", f"no_map mode finished. Metagenomic report can be found in {final_report}\n", "prGreen")
         return 0
 
     ## parse kraken2 report to a json
@@ -44,7 +45,7 @@ def runScreen(args):
     final_report = makeFinalReport(args, variant_profile, reports)
 
     if args.clean or args.superclean:
-        final_report = clean_outdir(args, final_report)
+        final_report = cleanOutdir(args, final_report)
 
     vprint("FINISHED", f"Final report can be found at {final_report}\n", "prGreen")
 
@@ -193,7 +194,7 @@ def makeFinalReport(args, variant_profile, reports):
     import json
     from os import listdir
 
-    from Afanc.utilities.getVersions import get_versions_screen
+    from Afanc.utilities.getVersions import getVersionsScreen
 
     subprocessID = "REPORT"
     vprint(
@@ -228,7 +229,7 @@ def makeFinalReport(args, variant_profile, reports):
 
     ## collect versions
     jsondict["versions"] = {
-        "screen" : get_versions_screen()
+        "screen" : getVersionsScreen()
     }
 
     ## collect k2 json reports
@@ -243,25 +244,44 @@ def makeFinalReport(args, variant_profile, reports):
             ## initialise warnings
             event["warnings"] = []
 
-            ## block to deal with most likely variants
-            if "closest_variant" in event:
-                variant_flag = True
-                taxon_id = str(event["closest_variant"]["taxon_id"])
+            ## handle instances where an assembly cannot be found or no_map mode was used
+            if "assembly" in event:
 
-                ## in instances where this hit was subjected to variant profiling, the assembly used for mapping will
-                ## belong to the species rather than the closest variant
-                if "assembly" in event["closest_variant"]:
-                    assembly = event["closest_variant"]["assembly"]
+                ## block to deal with most likely variants
+                if "closest_variant" in event:
+                    variant_flag = True
+                    taxon_id = str(event["closest_variant"]["taxon_id"])
+
+                    ## in instances where this hit was subjected to variant profiling, the assembly used for mapping will
+                    ## belong to the species rather than the closest variant
+                    if "assembly" in event["closest_variant"]:
+                        assembly = event["closest_variant"]["assembly"]
+                    else:
+                        assembly = event["assembly"]
+                
+                ## no variants
                 else:
+                    variant_flag = False
                     assembly = event["assembly"]
+                    taxon_id = str(event["taxon_id"])
+
+            ## block to deal with instances where there is no assembly
+            ## this is to ensure that a final json is constructed when no_map mode is used   
             else:
-                variant_flag = False
-                assembly = event["assembly"]
-                taxon_id = str(event["taxon_id"])
+                ## block to deal with most likely variants
+                if "closest_variant" in event:
+                    variant_flag = True
+                    assembly = None
+                    taxon_id = str(event["closest_variant"]["taxon_id"])
+
+                ## no variants
+                else:
+                    variant_flag = False
+                    assembly = None
+                    taxon_id = str(event["taxon_id"])
 
             ## block dealing with hits which have an accompanying assembly which reads were mapped to
             if not assembly == None:
-
                 assembly_prefix = path.basename(path.splitext(assembly)[0])
                 if assembly_prefix.endswith("_genomic"):
                     assembly_prefix = assembly_prefix.strip("_genomic")
@@ -310,7 +330,7 @@ def makeFinalReport(args, variant_profile, reports):
     return final_report
 
 
-def clean_outdir(args, final_report):
+def cleanOutdir(args, final_report):
     """ Cleans the output directory according to provided arguments.
 
     clean : remove the bt2 working directory.
