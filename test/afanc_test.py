@@ -24,7 +24,10 @@ import json
 import argparse
 from argparse import RawTextHelpFormatter
 
-def run_test(args):
+
+def runTest(args):
+
+    nomap = True
 
     ## tsv for results
     tsv_handle = open("./Afanc_test.tsv", 'w')
@@ -61,8 +64,11 @@ def run_test(args):
             print(f"Error at {fq1} {fq2} {truth_val}. FASTQ files must end with either .fq.gz or .fastq.gz. Exiting.")
             sys.exit(1)
 
-        runline = f"afanc screen -o {prefix} -v {args.variants} -n 10 {args.db} {fq1} {fq2} -c > {prefix}.log"
-        # print(runline)
+        if nomap:
+            runline = f"afanc screen -o {prefix} -v {args.variants} -n 10 {args.db} {fq1} {fq2} -a > {prefix}.log"
+              
+        else:
+            runline = f"afanc screen -o {prefix} -v {args.variants} -n 10 {args.db} {fq1} {fq2} -c > {prefix}.log"
 
         if not os.path.exists(prefix):
             subprocess.call(runline, shell=True)
@@ -70,7 +76,7 @@ def run_test(args):
         results_json = f"./{prefix}/{prefix}.json"
 
         if os.path.exists(results_json):
-            results = check_hits(results_json, truth_val)
+            results = checkHits(results_json, truth_val)
 
         else:
             result = "RUNFAIL"
@@ -94,24 +100,24 @@ def run_test(args):
 
     tsv_handle.close()
 
-def check_hits(results_json, truth_val):
+def checkHits(results_json, truth_val):
 
     with open(results_json, "r") as fin:
         jdata = json.load(fin)
 
         hits = jdata["results"]["Detection_events"]
 
-        cluster_results, cluster_hits = get_cluster_hits(hits["Clustering_results"], truth_val)
+        cluster_results, cluster_hits = getClusterHits(hits["Clustering_results"], truth_val)
 
         results = { "cluster" : [cluster_results, cluster_hits], "variant" : [None, [["None", "None"]]] }
 
         if "Variant_profile" in hits:
-            variant_results, variant_hits = get_variant_hits(hits["Variant_profile"], truth_val)
+            variant_results, variant_hits = getClusterHits(hits["Variant_profile"], truth_val)
             results["variant"] = [variant_results, variant_hits]
 
     return results
 
-def get_variant_hits(hits, truth_val):
+def getVariantHits(hits, truth_val):
 
     variant_box = []
 
@@ -130,7 +136,7 @@ def get_variant_hits(hits, truth_val):
 
     return result, variant_box
 
-def get_cluster_hits(hits, truth_val):
+def getClusterHits(hits, truth_val):
     """ checks hits against a known truth value
     """
 
@@ -184,6 +190,6 @@ def parse_args(argv):
     parser.add_argument("run_list", action='store', help="A tab separated txt file containing the paired end .fq paths and a truth value to compare the output to.")
     parser.add_argument("variants", action='store', help="A tab separated txt file containing variant info.")
 
-    run_test(parser.parse_args(argv))
+    runTest(parser.parse_args(argv))
 
 parse_args(sys.argv)
