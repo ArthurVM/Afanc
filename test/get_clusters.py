@@ -12,29 +12,26 @@ from Afanc.utilities.runCommands import command
 
 
 def makePCA(distance_matrix, species_dict):
-    # Perform PCA
     pca = PCA(n_components=2)
     principal_components = pca.fit_transform(distance_matrix.values)
 
-    # Create a DataFrame for visualization
     pca_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
     pca_df.index = distance_matrix.index  # Assuming index contains sequence IDs
 
-    # Map species to the DataFrame based on the dictionary
     pca_df['Species'] = pca_df.index.map(species_dict)
 
-    # Create a classifier dictionary
+    ## Create a classifier dictionary
     unique_species = pca_df['Species'].unique()
     # classifier_dict = dict(zip(unique_species, plt.cm.tab10(np.arange(len(unique_species)))))
     markers = list(itertools.product(['o', 's', '^', 'D', 'v'], plt.cm.tab10.colors))
     classifier_dict = dict(zip(unique_species, markers))
 
-    # Plot the PCA with colored points
     fig, ax = plt.subplots()
     for species, (shape, color) in classifier_dict.items():
         subset_df = pca_df[pca_df['Species'] == species]
 
-        # # Calculate the mode for each cluster
+        ## Calculate the mode for each cluster and chuck a ring around it
+        ## doesn't really work because of dimensionality reduction
         # for cluster in subset_df.groupby('Species').groups.values():
         #     # Filter the DataFrame using boolean indexing
         #     cluster_data = subset_df.loc[cluster]
@@ -54,14 +51,12 @@ def makePCA(distance_matrix, species_dict):
     ax.grid(True)
     ax.legend()
 
-    # Shrink current axis by 20%
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-    # Put a legend to the right of the current axis
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    ## add a scree plot
+    ## scree plot
     # scree_ax = fig.add_axes([0.69, 0.67, 0.2, 0.2])
     # explained_variance_ratio = pca.explained_variance_ratio_
     # scree_ax.plot(range(1, len(explained_variance_ratio) + 1), np.cumsum(explained_variance_ratio), marker='o', linestyle='--')
@@ -81,23 +76,15 @@ def makePCA(distance_matrix, species_dict):
 
 def readDistOut(dist_file, id_dict):
 
-    # Read the file into a DataFrame
     df = pd.read_csv(dist_file, sep='\t', header=None, names=["ref_path", "query_path", "mash_dist", "p", "matching_hashes"])
 
-    # Extract file names from paths
     df['ref_ID'] = df['ref_path'].apply(lambda x: path.basename(x))
     df['query_ID'] = df['query_path'].apply(lambda x: path.basename(x))
 
-    # Create a pivot table to construct the distance matrix
     distance_matrix = df.pivot(index='ref_ID', columns='query_ID', values='mash_dist')
-
-    # Fill the diagonal with zeros
     distance_matrix = distance_matrix.fillna(0)
-
-    # Fill in the missing values by mirroring the existing values
     distance_matrix = distance_matrix + distance_matrix.T
 
-    # Save the result to a CSV file
     distance_matrix.to_csv("mash_out.dist")
 
     return distance_matrix
