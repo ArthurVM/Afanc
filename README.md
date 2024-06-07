@@ -125,8 +125,8 @@ ncbi-blast+
 Krona
 bowtie2
 ```
-### Entrez Direct
-Install instructions for Entrez Direct E-utilities can be found at https://www.ncbi.nlm.nih.gov/books/NBK179288/
+### NCBI Datasets
+Install instructions for ncbi datasets can be found at https://www.ncbi.nlm.nih.gov/datasets/docs/v2/download-and-install/
 
 ### Mash
 ```
