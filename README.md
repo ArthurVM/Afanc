@@ -183,3 +183,6 @@ Highly complex compound (multi-species/variant) dataset
 ❯ time afanc screen -o M2.1 -t 6 ./Mycobacteriaciae_DB_3.0 Myco_sim_data/M2/M2.1_1.fq.gz Myco_sim_data/M2/M2.1_2.fq.gz > M2.1.afanc.txt
 afanc screen -o M2.1 -t 6 ./Mycobacteriaciae_DB_3.0   > M2.1.afanc.txt  240.89s user 4.71s system 257% cpu 1:35.22 total
 ```
+
+### Citation
+https://www.biorxiv.org/content/10.1101/2023.10.05.560444v1
