@@ -2,7 +2,7 @@ import json
 
 from sys import stdout, exit
 from shutil import move, rmtree
-from os import mkdir, chdir, path, listdir
+from os import mkdir, chdir, path, listdir, getcwd
 
 from Afanc.utilities.runCommands import command
 from Afanc.utilities.generalUtils import vprint
@@ -35,6 +35,8 @@ def download_genome(assembly, args):
     ## check there are sequences on GenBank available for this species
     if out["total_count"] == 0:
         return
+    
+    mkchdir(f"./{assembly.replace(' ', '_')}")
     
     ## check there are enough sequences to download
     ## if not, download them all
@@ -88,27 +90,33 @@ def runGet_dataset(args):
         "prYellow"
     )
 
+    cwd = getcwd()
     assemblyIDs = parse_names_file(args.ID_file)
     numIDs = len(assemblyIDs)
 
     print(f"Found {numIDs} IDs in {args.ID_file}\n")
 
-    mkchdir(f"./{args.output_prefix}")
+    mkchdir(f"{cwd}/{args.output_prefix}")
 
     for i, id in enumerate(assemblyIDs):
 
-        stdout.write(f"\rDownloading assemblies for {id} ({i+1}/{numIDs})\r")
+        if "/" in id or "\\" in id:
+            stdout.write(f"Invalid characters found in {id}. Skipping...\n")
+            continue
+
+        stdout.write(f"\rDownloading assemblies for {id} ({i+1}/{numIDs})\033[K\r")
         stdout.flush()
 
-        if not args.accessions:
-            mkchdir(f"./{id.replace(' ', '_')}")
+        try:
+            if not args.accessions:
+                download_genome(id, args)
 
-            download_genome(id, args)
+            else:
+                download_genome(id, 1, args.accessions)
+        except:
+            print(f"Something went wrong attempting to download {id}...\033[K")
 
-            chdir("../")
-
-        else:
-            download_genome(id, 1, args.accessions)
+        chdir(f"{cwd}/{args.output_prefix}")
 
     vprint(
         subprocessID,

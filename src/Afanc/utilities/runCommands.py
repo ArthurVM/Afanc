@@ -1,9 +1,11 @@
 import sys
+import shlex
 from os import kill, path
 from signal import alarm, signal, SIGALRM, SIGKILL
 from subprocess import PIPE, Popen
 
-from Afanc.utilities.generalUtils import vprint
+from .exceptions import CommandExecutionError
+from .generalUtils import vprint
 
 
 class Error(Exception):
@@ -29,12 +31,40 @@ class InputError(Error):
 
 
 class command():
-    """ A class for handling shell executed commands
-    TODO: clean up this class
-    """
-    def __init__(self, command, subprocessID):
-        self.command = str(command)
+    """A class for handling shell executed commands."""
+    def __init__(
+        self,
+        command,
+        subprocessID,
+        shell=None,
+        shell_executable=None,
+        pipefail=False,
+        cwd=None,
+        env=None,
+        timeout=360000,
+    ):
+        self.command = command
         self.subprocessID = str(subprocessID)
+        self.shell_executable = shell_executable
+        self.pipefail = pipefail
+        self.cwd = cwd
+        self.env = env
+        self.timeout = timeout
+
+        ## keeps the old shell=True behaviour for string commands while allowing
+        ## argv-style commands to bypass the shell when a list is provided
+        if shell is None:
+            self.shell = not isinstance(command, (list, tuple))
+        else:
+            self.shell = shell
+
+        ## pipefail requires a shell and is only reliably available under bash
+        if self.pipefail:
+            self.shell = True
+            if self.shell_executable == None:
+                self.shell_executable = "/bin/bash"
+
+        self.command_display = self._format_command_for_display(command)
         # vprint(self.subprocessID, f"COMMAND={self.command}", "prYellow")
 
     def run(self, timeout = -1):
@@ -47,7 +77,19 @@ class command():
         def alarm_handler(signum, frame):
             raise Alarm
 
-        p=Popen(self.command, shell = True, stdout = PIPE, stderr = PIPE, env = None)
+        popen_command = self._build_popen_command()
+        popen_kwargs = {
+            "shell": self.shell,
+            "stdout": PIPE,
+            "stderr": PIPE,
+            "env": self.env,
+            "cwd": self.cwd,
+        }
+
+        if self.shell and self.shell_executable != None:
+            popen_kwargs["executable"] = self.shell_executable
+
+        p=Popen(popen_command, **popen_kwargs)
 
         if timeout != -1:
             signal(SIGALRM, alarm_handler)
@@ -63,68 +105,100 @@ class command():
             if kill_tree:
                 pids.extend(self.get_process_children(p.pid))
             for pid in pids:
-                # This is to avoid OSError: no such process in case process dies before getting to this line
+                ## this is to avoid OSError: no such process in case process dies before getting to this line
                 try:
                     kill(pid, SIGKILL)
                 except OSError:
                     pass
-            return -1, '', ''
+            stderr = f"Command timed out after {timeout} seconds.".encode()
+            return -1, b'', stderr
 
         return p.returncode, stdout, stderr
 
-    def run_comm(self, if_out_return, so=None, se=None, exit=True):
+    def run_comm(self, if_out_return, so=None, se=None, raise_on_error=True):
         """ Run the command with or without an exit code
         """
-        print(f"COMMAND={self.command}")
+        return self._run_comm(
+            if_out_return,
+            so=so,
+            se=se,
+            raise_on_error=raise_on_error,
+            quiet=False,
+        )
 
-        if so != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=so, flush=True)
-        if se != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=se, flush=True)
-
-        returncode, stdout, stderr = self.run(360000)
-
-        ## capture stdout and stderr
-        if so != None:
-            print(f"{stdout.decode()}\n", file=so, flush=True)
-        if se != None:
-            print(f"{stderr.decode()}\n", file=se, flush=True)
-
-        if returncode and stderr:
-            vprint(self.subprocessID, f"{self.command} failed. Please check the log files to work out what went wrong.", "prRed")
-            print(f"STDOUT :\n{stdout.decode()}\nSTDERR :\n{stderr.decode()}\n")
-
-            if exit:
-                sys.exit(1)
-
-        if if_out_return:
-            return stdout, stderr
-
-    def run_comm_quiet(self, if_out_return, so=None, se=None, exit=True):
+    def run_comm_quiet(self, if_out_return, so=None, se=None, raise_on_error=True):
         """ Run the command quietly with or without an exit code
         """
+        return self._run_comm(
+            if_out_return,
+            so=so,
+            se=se,
+            raise_on_error=raise_on_error,
+            quiet=True,
+        )
 
-        if so != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=so, flush=True)
-        if se != None:
-            print(f"{self.subprocessID}\nCOMMAND={self.command}\n", file=se, flush=True)
+    def _run_comm(self, if_out_return, so=None, se=None, raise_on_error=True, quiet=False):
+        """Shared implementation for visible and quiet command execution."""
+        if not quiet:
+            print(f"COMMAND={self.command_display}")
 
-        returncode, stdout, stderr = self.run(360000)
+        self._write_command_headers(so=so, se=se)
 
-        ## capture stdout and stderr
-        if so != None:
-            print(f"{stdout.decode()}\n", file=so, flush=True)
-        if se != None:
-            print(f"{stderr.decode()}\n", file=se, flush=True)
+        returncode, stdout, stderr = self.run(self.timeout)
 
-        if returncode and stderr:
-            print(f"STDOUT :\n{stdout.decode()}\nSTDERR :\n{stderr.decode()}\n")
+        stdout_decoded = stdout.decode(errors='replace')
+        stderr_decoded = stderr.decode(errors='replace')
 
-            if exit:
-                sys.exit(1)
+        self._write_command_output(stdout_decoded, stderr_decoded, so=so, se=se)
+
+        if returncode != 0:
+            self._handle_error(returncode, stdout_decoded, stderr_decoded, raise_on_error, quiet)
 
         if if_out_return:
             return stdout, stderr
+
+    def _write_command_headers(self, so=None, se=None):
+        if so != None:
+            print(f"{self.subprocessID}\nCOMMAND={self.command_display}\n", file=so, flush=True)
+        if se != None:
+            print(f"{self.subprocessID}\nCOMMAND={self.command_display}\n", file=se, flush=True)
+
+    def _write_command_output(self, stdout_decoded, stderr_decoded, so=None, se=None):
+        if so != None:
+            print(f"{stdout_decoded}\n", file=so, flush=True)
+        if se != None:
+            print(f"{stderr_decoded}\n", file=se, flush=True)
+
+    def _handle_error(self, returncode, stdout_decoded, stderr_decoded, raise_on_error, quiet):
+        if raise_on_error:
+            raise CommandExecutionError(self.command_display, returncode, stdout_decoded, stderr_decoded)
+
+        if quiet:
+            print(f"Quiet command '{self.command_display}' failed. STDOUT:\n{stdout_decoded}\nSTDERR:\n{stderr_decoded}\nContinuing as raise_on_error is False.")
+            return
+
+        vprint(self.subprocessID, f"Command '{self.command_display}' failed. Continuing as raise_on_error is False.", "prRed")
+        print(f"STDOUT :\n{stdout_decoded}\nSTDERR :\n{stderr_decoded}\n")
+
+    def _build_popen_command(self):
+        if self.pipefail:
+            command_str = self._format_command_for_shell(self.command)
+            return f"set -o pipefail; {command_str}"
+
+        if self.shell:
+            return self._format_command_for_shell(self.command)
+
+        return self.command
+
+    def _format_command_for_shell(self, command):
+        if isinstance(command, (list, tuple)):
+            return shlex.join([str(c) for c in command])
+        return str(command)
+
+    def _format_command_for_display(self, command):
+        if isinstance(command, (list, tuple)):
+            return shlex.join([str(c) for c in command])
+        return str(command)
 
     def get_process_children(self, pid):
         p = Popen(f"ps --no-headers -o pid --ppid {pid}", shell = True,

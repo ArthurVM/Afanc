@@ -1,10 +1,9 @@
-""" Uses Bayes rule to commute reads from taxa which fall below 40% of the calculated elastic threshold to taxa which dont.
+""" Parse and deconvolve a kraken2 report using the Afanc tree model.
 """
 import json
 from collections import defaultdict
-from os import path, listdir
+from os import path
 
-from Afanc.utilities.generalUtils import gendbdict
 from .tree import Tree
 
 
@@ -69,7 +68,11 @@ def readK2report(report):
     with open(report, "r") as fin:
 
         for line in fin.readlines():
-            name, level_int, clade_perc, clade_reads, taxon_reads, taxon_level, ncbi_taxID = parseK2line(line)
+            parsed = parseK2line(line)
+            if not parsed:
+                continue
+
+            name, level_int, clade_perc, clade_reads, taxon_reads, taxon_level, ncbi_taxID = parsed
 
             if name == "unclassified":
                 continue
@@ -104,112 +107,54 @@ def readK2report(report):
     return base_nodes, root_node
 
 
-def get_local_max_list(branch_box):
-    """ Generate a set of local max weighting nodes for each node in branch_box
+def get_scoring_nodes(root_node):
+    """ Return all nodes called as true signal by the tree deconvolution model.
     """
-
-    best_hits = []
-    for node in branch_box:
-        top_hit = node.find_local_max()
-        best_hits.append(top_hit)
-
-    return set(best_hits)
+    return [node for node in root_node.traverse() if hasattr(node, "scoring_rule")]
 
 
-def find_best_hit(root_node, variant_index, pct_threshold, num_threshold):
-    """ Find the lowest level nodes on each branch which are weighted greater than the weight threshold,
-    then generate a set of local max weighting nodes for each node in branch_box.
+def get_terminal_scoring_nodes(root_node):
+    """ Return scoring nodes which do not contain a lower scoring descendant.
+
+    These nodes represent the final deconvolved calls. Internal scoring nodes
+    are retained only when no more specific scoring taxon is present below
+    them.
     """
+    scoring_nodes = set(get_scoring_nodes(root_node))
+    terminal_nodes = []
 
-    best_hits = []
+    for node in scoring_nodes:
+        scoring_descendants = [child for child in node.traverse() if child is not node and child in scoring_nodes]
+        if not scoring_descendants:
+            terminal_nodes.append(node)
 
-    ## find lowest level scoring nodes
-    for node in root_node.traverse():
-        ## check if node scores above the pct_threshold and is a species complex level or lower node
-        if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold and node.level_int >= 9:
-            ## construct scorebox then strip off the head node
-            scorebox = [ n.clade_perc for n in node.traverse() ][:-1]
-
-            ## check if any node in the box exceeds the pct_threshold
-            ## if so, the head node is not the lowest level node which exceeds pct_threshold on this branch
-            if any(score >= pct_threshold for score in scorebox):
-                continue
-
-            ## else it is assumed to be the lowest level scoring node on this branch
-            else:
-                ## find the local max for this scoring node
-                top_hit = node.find_local_max(variant_index)
-                best_hits.append(top_hit)
-
-        else:
-            # print(colored(line, 'red'))
-            continue
-
-    return best_hits
+    return sorted(terminal_nodes, key=lambda node: node.level_int)
 
 
-def commute_reads(args, root_node, variant_index, pct_threshold, num_threshold):
+def makeJson(root_node, output_prefix, reportsDir, pct_threshold, num_threshold, dbdict, audit):
+    """ Generate a JSON report from terminal deconvolved tree calls.
 
-    commute_stats = defaultdict(dict)
-
-    ## find lowest level scoring nodes
-    for node in root_node.traverse():
-        ## check if node scores above the pct_threshold
-        # print(node.name, node.level_int, node.clade_perc, node.clade_reads)
-        if node.clade_perc >= pct_threshold and node.clade_reads >= num_threshold and node.level_int >= 9:
-            ## construct scorebox then strip off the head node
-            scorebox = [ n.clade_perc for n in node.traverse() ][:-1]
-
-            ## check if any node in the box exceeds the pct_threshold
-            ## if so, the head node is not the lowest level node which exceeds pct_threshold on this branch
-            if any(score >= pct_threshold for score in scorebox):
-                continue
-
-            ## else it is assumed to be the lowest level scoring node on this branch
-            else:
-                ## find the local max for this scoring node
-                commute_dict = node.bayes_commute(variant_index, args.lower_bound, args.upper_bound)
-                commute_stats.update(commute_dict)
-
-        else:
-            continue
-
-    with open(f"./{args.output_prefix}.commute_stats.json", "w") as fout:
-        json.dump(commute_stats, fout, indent = 4)
-
-
-def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold, dbdict):
-    """ takes the results dict and generates a json report.
-    {
-    F : [tax1, tax2, ..., taxn],
-    G : [tax1, tax2, ..., taxn],
-    S : [tax1, tax2, ..., taxn],
-    S1 : [tax1, tax2, ..., taxn],
-    ...,
-    Sn : [tax1, tax2, ..., taxn]
-    }
+    Below-species calls are reported as a species-level event with the called
+    lower taxon captured in ``closest_variant``. This preserves the downstream
+    mapping behaviour used by Afanc screen.
     """
-
-    taxon_level_key = { \
-    "P" : "Phylum",
-    "C" : "Class",
-    "O" : "Order",
-    "F" : "Family",
-    "G" : "Genus",
-    "G1": "Species Complex",
-    "S" : "Species"
-     }
-
     out_json = f"{reportsDir}/{output_prefix}.k2.json"
 
-    json_dict = { "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold }, "Detection_events" : [] }
+    json_dict = {
+        "Thresholds" : { "reads" : num_threshold, "percentage" : pct_threshold },
+        "Deconvolution" : audit,
+        "Detection_events" : []
+        }
 
     ## create json report dict
-    for node in branch_box:
+    for node in get_terminal_scoring_nodes(root_node):
 
-        ## check if the node is its own mother_clade, and therefore has no scoring subclades
-        if node != node.mother_clade:
-            json_line = node.mother_clade.makeJsonLine(dbdict)
+        species_node = node.ancestor_at_taxon_level("S")
+
+        ## if this is a below-species hit, keep the species as the mapping
+        ## context and record the more specific taxon as the closest variant
+        if species_node is not None and node != species_node:
+            json_line = species_node.makeJsonLine(dbdict)
             json_line["closest_variant"] = node.makeJsonLine(dbdict)
             json_dict["Detection_events"].append(json_line)
 
@@ -217,7 +162,7 @@ def makeJson(branch_box, output_prefix, reportsDir, pct_threshold, num_threshold
             json_dict["Detection_events"].append(node.makeJsonLine(dbdict))
 
     with open(out_json, "w") as fout:
-        json.dump(json_dict, fout, indent = 4)
+        json.dump(json_dict, fout, indent = 4, default=str)
 
     return out_json
 
@@ -229,21 +174,29 @@ def parseK2reportMain(args, dbdict):
     if not path.exists(report_path):
         return None
 
-    variant_index = read_variant_index(args.variant_index_path)
-
     base_nodes, root_node = readK2report(report_path)
 
     ## escape if there i no root node present in the kraken2 report file
     if root_node == None:
         return None
 
-    commute_reads(args, root_node, variant_index, args.pct_threshold, args.num_threshold)
+    audit = root_node.redistribute_lca_hierarchical(
+        mvi=getattr(args, "mvi_path", args.database),
+        global_threshold=args.pct_threshold,
+        min_reads=0,
+    )
 
-    best_hits = find_best_hit(root_node, variant_index, args.pct_threshold, args.num_threshold)
+    commute_stats_path = path.join(args.k2WDir, f"{args.output_prefix}.commute_stats.json")
+    filtered_report_path = path.join(args.k2WDir, f"{args.output_prefix}.filtered.k2.report.txt")
 
-    if len(best_hits) == 0:
+    with open(commute_stats_path, "w") as fout:
+        json.dump(audit, fout, indent = 4, default=str)
+
+    root_node.write_kraken_report(filtered_report_path, prune_zero=True)
+
+    if len(get_terminal_scoring_nodes(root_node)) == 0:
         return None
 
-    out_json = makeJson(best_hits, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, dbdict)
+    out_json = makeJson(root_node, args.output_prefix, args.reportsDir, args.pct_threshold, args.num_threshold, dbdict, audit)
 
     return out_json

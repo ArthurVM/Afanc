@@ -5,13 +5,13 @@ import sys
 import argparse
 from ._version import __version__
 
-from Afanc.utilities.generalUtils import isDir, isFile, checkDate, reformat_mapping_arg, check_variant_tsv
+from Afanc.utilities.generalUtils import isDir, isFile, checkNcbiTaxDB, checkDate
 
 """
 Parse arguments for Afanc
 """
 
-def run_subtool(args):
+def runSubtool(args):
     ## level 0 run function
 
     ## initialise log files to deposit stdout and stderr when necessary
@@ -103,7 +103,7 @@ parser_getDataset.add_argument('-o', '--output_prefix',
     help='Output prefix for this run. Default=assemblies.')
 
 
-parser_getDataset.set_defaults(func=run_subtool)
+parser_getDataset.set_defaults(func=runSubtool)
 
 ## autodatabase args parser
 parser_autodb = subparsers.add_parser(
@@ -124,15 +124,32 @@ parser_autodb.add_argument('-o', '--output_prefix',
 
 parser_autodb.add_argument('-n', '--ncbi_date',
     type=checkDate,
-    default="2022-05-01",
+    default="2026-05-01",
     action='store',
-    help='The date of NCBI taxonomy to download. Must be of the form YYYY-05-MM. Default=2022-05-01.')
+    help='The date of NCBI taxonomy to download. Must be of the form YYYY-05-MM. Default=2026-05-01.')
 
 parser_autodb.add_argument('-m', '--mode_range',
     type=float,
     default=0.1,
     action='store',
     help='Range to take around the mode of the average mash distance. Default=0.1.')
+
+parser_autodb.add_argument('-v', '--variant_index_method',
+    choices=['mash'],
+    default='mash',
+    action='store',
+    help='Method for calculating intra/inter-taxon distances for the Mash Variant Index. Default=mash.')
+
+parser_autodb.add_argument('-x', '--ncbi_tax_db',
+    type=checkNcbiTaxDB,
+    default=False,
+    action='store',
+    help='Use a locally stored ncbi taxonomy database instead of downloading from ncbi. Default=False.')
+
+parser_autodb.add_argument('-f', "--use_ftp",
+    action="store_true",
+    default=False,
+    help="Flag. Use ftp instead of https/rsync when downloading, Default=False.")
 
 # parser_autodb.add_argument('-d', '--stdev',
 #     type=float,
@@ -158,7 +175,7 @@ clean_group.add_argument('-s', '--superclean',
     action='store_true',
     help='Remove all files not required for running Afanc screen from the output directory. Default=False.')
 
-parser_autodb.set_defaults(func=run_subtool)
+parser_autodb.set_defaults(func=runSubtool)
 
 ## Afanc-screen parser
 parser_screen = subparsers.add_parser(
@@ -201,18 +218,111 @@ parser_screen.add_argument('-l', '--lower_bound',
     action='store',
     help='The lower bound fraction of the elastic threshold to designate read commute donors. Default=0.25.')
 
-parser_screen.add_argument('-m', '--mapping_sensitivity',
-    type=reformat_mapping_arg,
-    default="very-sensitive",
+parser_screen.add_argument('--variant-caller', '--variant_caller',
+    choices=['freebayes', 'bcftools'],
+    default='freebayes',
+    dest='variant_caller',
     action='store',
-    choices=["very-sensitive", "sensitive", "fast", "very-fast"],
-    help='Sensitivity of mapping to use when mapping reads to suspected target genomes.')
+    help='Variant caller to use for SNP detection before lineage classification. Default=freebayes.')
 
-parser_screen.add_argument('-v', '--variant_profile',
-    type=check_variant_tsv,
+parser_screen.add_argument('--lineage-profile-compound', '--compound-dataset', '--compound_dataset',
     default=False,
+    dest='lineage_profile_compound',
+    action='store_true',
+    help='Force lineage profiling when multiple taxa are detected. Default=False because mixed datasets can confound lineage SNP profiles.')
+
+parser_screen.add_argument('--snp-min-qual',
+    type=float,
+    default=30.0,
+    dest='snp_min_qual',
     action='store',
-    help='A tsv file containing fields and paths for variant profiling. Must be of form <speciesID> <pathToRefFasta> <pathToVariantBED>. Default=False.')
+    help='Minimum VCF QUAL for SNPs included in SNP JSON. Default=30.')
+
+parser_screen.add_argument('--snp-min-dp',
+    type=int,
+    default=None,
+    dest='snp_min_dp',
+    action='store',
+    help='Require INFO/DP >= this value for SNPs included in SNP JSON. Default=no INFO/DP filter.')
+
+parser_screen.add_argument('--snp-min-missing-depth',
+    type=int,
+    default=10,
+    dest='snp_min_missing_depth',
+    action='store',
+    help='Positions with samtools depth -aa coverage below this value are marked missing. Default=10.')
+
+parser_screen.add_argument('--snp-allow-filtered',
+    default=False,
+    dest='snp_allow_filtered',
+    action='store_true',
+    help='Allow VCF records with FILTER values other than PASS/. in SNP JSON. Default=False.')
+
+parser_screen.add_argument('--snp-accept-missing-qual',
+    default=False,
+    dest='snp_accept_missing_qual',
+    action='store_true',
+    help='Allow VCF records with missing QUAL in SNP JSON. Default=False.')
+
+parser_screen.add_argument('--no-lineage-classify',
+    default=False,
+    dest='no_lineage_classify',
+    action='store_true',
+    help='Do not run lineage classification even when a database profile model is available. Default=False.')
+
+parser_screen.add_argument('--profiles-dir',
+    type=isDir,
+    default=None,
+    dest='profiles_dir',
+    action='store',
+    help='Directory containing profiles.json and profile references/models. Default=<database>/profiles, then sibling ../profiles if present.')
+
+parser_screen.add_argument('--lineage-min-support',
+    type=int,
+    default=1,
+    dest='lineage_min_support',
+    action='store',
+    help='Minimum matched loci required for hierarchical lineage descent. Default=1.')
+
+parser_screen.add_argument('--lineage-min-support-fraction',
+    type=float,
+    default=0.75,
+    dest='lineage_min_support_fraction',
+    action='store',
+    help='Minimum callable support fraction required for hierarchical lineage descent. Default=0.75.')
+
+parser_screen.add_argument('--lineage-min-callable-fraction',
+    type=float,
+    default=0.5,
+    dest='lineage_min_callable_fraction',
+    action='store',
+    help='Minimum callable marker fraction required for supported hierarchical lineage calls. Default=0.5.')
+
+parser_screen.add_argument('--lineage-ambiguity-margin',
+    type=float,
+    default=0.1,
+    dest='lineage_ambiguity_margin',
+    action='store',
+    help='Minimum decision-score margin used to resolve multiple compatible lineage children. Default=0.1.')
+
+parser_screen.add_argument('--lineage-tie-delta',
+    type=float,
+    default=0.0,
+    dest='lineage_tie_delta',
+    action='store',
+    help='Posterior delta used to report tied lineage calls. Default=0.0.')
+
+parser_screen.add_argument('--lineage-disable-reference-marker-inference',
+    default=False,
+    dest='lineage_disable_reference_marker_inference',
+    action='store_true',
+    help='Disable reference-marker inference for canonical-as-empirical models. Default=False.')
+
+parser_screen.add_argument('--lineage-disable-incomplete-descent',
+    default=False,
+    dest='lineage_disable_incomplete_descent',
+    action='store_true',
+    help='Disable incomplete hierarchical descent through partially callable lineage nodes. Default=False.')
 
 parser_screen.add_argument('-o', '--output_prefix',
     type=str,
@@ -241,7 +351,7 @@ clean_group = parser_screen.add_mutually_exclusive_group()
 clean_group.add_argument('-c', '--clean',
     default=False,
     action='store_true',
-    help='Remove the bowtie2 working directory from the output directory. Default=False.')
+    help='Remove the mapping working directory from the output directory. Default=False.')
 
 clean_group.add_argument('-s', '--superclean',
     default=False,
@@ -253,4 +363,4 @@ clean_group.add_argument('-a', '--no_map',
     action='store_true',
     help='Only perform metagenomic screening, do not proceed to mapping or variant calling. Default=False.')
 
-parser_screen.set_defaults(func=run_subtool)
+parser_screen.set_defaults(func=runSubtool)

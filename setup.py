@@ -30,7 +30,7 @@ exec(open('src/Afanc/_version.py').read())
 setup(
     name='Afanc',
     version=__version__,
-    description='General purpose high-resolution metagenomics disambiguation.',
+    description='General purpose high-resolution metagenomics deconvolution.',
     license="MIT",
     long_description=long_description,
     author='Arthur V. Morris',
@@ -45,16 +45,20 @@ setup(
         "Operating System :: POSIX",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Utilities",
     ],
     install_requires=[
-    'Biopython==1.79',
-    'numpy==1.20.3',
-    'pysam==0.18.0',
-    'pandas==1.3.4',
-    'scipy==1.7.1'
+    'Biopython>=1.79',
+    'numpy>=1.20.3',
+    'pysam>=0.18.0',
+    'pandas>=1.3.4',
+    'scipy>=1.7.1'
     ],
     entry_points={
         'console_scripts': [

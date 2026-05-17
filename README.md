@@ -1,4 +1,4 @@
-# Afanc: High Resolution Metagenomic Disambiguator
+# Afanc: High Resolution Metagenomic Deconvolution
 
 | | |
 | --- | --- |
@@ -8,7 +8,7 @@
 | License | [GNU GPL v3.0](https://opensource.org/license/gpl-3-0/) |
 
 ## Description
-A toolkit for performing variant level metageonomics disambiguation of NGS reads.
+A toolkit for performing variant level metageonomics deconvolution of NGS reads.
 
 ## Installation
 Installation is quick and easy, simply run
@@ -123,7 +123,10 @@ Mash v2.3
 Kraken2 v2.1.2
 ncbi-blast+
 Krona
-bowtie2
+BWA
+samtools
+samclip
+freebayes or bcftools
 ```
 ### Entrez Direct
 Install instructions for Entrez Direct E-utilities can be found at https://www.ncbi.nlm.nih.gov/books/NBK179288/
@@ -157,15 +160,6 @@ Install instructions for Entrez Direct E-utilities can be found at https://www.n
   cd /Krona/KronaTools \
   ./install.pl \
   ./updateTaxonomy.sh
-```
-
-### Bowtie2
-```
-  curl -fsSL https://sourceforge.net/projects/bowtie-bio/files/bowtie2/${bowtie2_version}/bowtie2-2.3.4.1-source.zip -o bowtie2-2.3.4.1-source.zip
-  unzip bowtie2-2.3.4.1-source.zip 
-  make -C bowtie2-2.3.4.1 prefix=/usr/local install
-  rm -r bowtie2-2.3.4.1
-  rm bowtie2-2.3.4.1-source.zip
 ```
 
 ### Benchmarking
