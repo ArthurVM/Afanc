@@ -14,7 +14,12 @@ def getTaxonomy(args, ncbiDate):
         nodes <str> : nodes.dmp path
     """
 
-    taxonomy_ftp_path = f"ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_{ncbiDate}.zip"
+    prefix = "https"
+
+    if args.use_ftp:
+        prefix = "ftp"
+
+    taxonomy_ftp_path = f"{prefix}://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_{ncbiDate}.zip"
 
     get_taxonomy_runline = f"wget {taxonomy_ftp_path} ; unzip -o taxdmp_{ncbiDate}.zip"
     stdout, stderr = command(get_taxonomy_runline, "GET_TAXONOMY").run_comm(1, args.stdout, args.stderr)
@@ -46,5 +51,5 @@ def addTaxon(args, names, nodes, taxon, taxa_number):
     taxID = int(largestTax)+1
 
     with open(names, 'a') as names_fout, open(nodes, 'a') as nodes_fout:
-        names_fout.write(f"{taxID}\t|\t{taxon}\t|\t\t|\tscientific name\t|")
-        nodes_fout.write(f"{taxID}\t|\t{taxa_number}\t|\tspecies\t|\t\t|\t11\t|\t1\t|\t1\t|\t1\t|\t1\t|\t1\t|\t1\t|\t1\t|")
+        names_fout.write(f"{taxID}\t|\t{taxon}\t|\t\t|\tscientific name\t|\n")
+        nodes_fout.write(f"{taxID}\t|\t{taxa_number}\t|\tspecies\t|\t\t|\t11\t|\t1\t|\t1\t|\t1\t|\t1\t|\t1\t|\t1\t|\t1\t|\n")

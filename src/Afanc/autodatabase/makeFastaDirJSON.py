@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 from os import path, walk
 
-def make_fasta_dir_JSON(fasta_dir):
+def makeFastaDirJSON(fasta_dir):
     """ Takes the inpit FASTA directory structure and generates a JSON listing
     files and their hierarchical structure.
     """

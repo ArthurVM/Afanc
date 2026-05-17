@@ -24,7 +24,7 @@ def genScreenDirStructure(args):
                  |
         -------------------
         |        |        |
-     reports    k2WDir    bt2WD
+     reports    k2WDir    mappingWD
 
     Generates files with a randomly generated run key, which is (probably) unique to this run.
 
@@ -66,11 +66,11 @@ def genScreenDirStructure(args):
     args.k2WDir = path.join(args.runWDir, "k2WDir")
     mkdir(args.k2WDir)  ## make directory to dump misc output files
 
-    args.bt2WDir = path.join(args.runWDir, "bt2WD")
-    mkdir(args.bt2WDir)  ## make directory to contain data for running bowtie2 mapping
+    args.mappingWDir = path.join(args.runWDir, "mappingWD")
+    mkdir(args.mappingWDir)  ## make directory to contain data for read mapping
 
     args.profilerWDir = path.join(args.runWDir, "profilerWD")
-    mkdir(args.profilerWDir)  ## make directory to contain data from variant profiling
+    mkdir(args.profilerWDir)  ## make directory to contain SNP and lineage profiling data
 
 
 def initAutoDBDirStructure(args):
@@ -89,6 +89,8 @@ def initAutoDBDirStructure(args):
 def checkautodbWD(args):
     """ if fetch_assemblies is False, check the autodatabase directory for required files
     """
+    from Afanc.screen.profiles import load_profiles_manifest
+
     wd_box = listdir(args.database)
 
     if "krakenBuild_autoDatabase_kraken2Build" in wd_box:
@@ -135,16 +137,43 @@ def checkautodbWD(args):
         )
         exit(4)
 
-    if "variant_index.json" in wd_box:
-        args.variant_index_path = path.join(args.database, "variant_index.json")
-    else:
+    mvi_dir = path.join(args.database, "selectFasta_autoDatabase_variantIndex")
+
+    if not path.isdir(mvi_dir):
         vprint(
             subprocessID,
-            f"variant_index.json not found in the autodatabase results directory! Exiting...",
+            f"Mash Variant Index directory not found in the autodatabase results directory: {mvi_dir}. Exiting...",
             "prRed",
             sys.stderr,
         )
         exit(4)
+
+    mvi_box = listdir(mvi_dir)
+    mvi_files = [
+        "variant_index.json",
+        "mash_all_vs_all.tsv",
+        "mash_genus_matrix.tsv",
+        "mash_species_matrix.tsv",
+    ]
+    missing_mvi_files = [mvi_file for mvi_file in mvi_files if mvi_file not in mvi_box]
+
+    if len(missing_mvi_files) == 0:
+        args.variant_index_path = path.join(mvi_dir, "variant_index.json")
+        args.mvi_path = mvi_dir
+    else:
+        vprint(
+            subprocessID,
+            f"Mash Variant Index files not found in {mvi_dir}: {', '.join(missing_mvi_files)}. Exiting...",
+            "prRed",
+            sys.stderr,
+        )
+        exit(4)
+
+    args.profiles_dir, args.profiles_manifest = load_profiles_manifest(
+        args.database,
+        profiles_dir=getattr(args, "profiles_dir", None),
+    )
+    args.lineage_profiles_by_accession = {}
 
 def mkchdir(dir, ch=True):
     """ make and change to a dir
