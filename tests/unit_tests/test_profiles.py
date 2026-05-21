@@ -185,7 +185,7 @@ def test_load_profiles_manifest_finds_sibling_profiles_dir(tmp_path):
     assert manifest == {"profiles": {}}
 
 
-def test_detection_events_are_indexed_by_terminal_clustering_call_with_profiles():
+def test_detection_events_are_indexed_by_species_call_with_nested_variant_profiles():
     event = {
         "name": "Mycobacterium tuberculosis",
         "taxon_id": 1773,
@@ -214,15 +214,16 @@ def test_detection_events_are_indexed_by_terminal_clustering_call_with_profiles(
         lineage_profile=lineage_profile,
     )
 
-    assert sorted(by_taxid) == ["33892"]
-    assert by_taxid["33892"]["name"] == "Mycobacterium tuberculosis variant bovis BCG"
-    assert by_taxid["33892"]["clustering"]["parent_context"]["taxon_id"] == 1773
-    assert by_taxid["33892"]["snp_profile"]["H37Rv"]["snp_count"] == 2
-    assert by_taxid["33892"]["lineage_profile"]["H37Rv"]["best_lineage"] == "lineage4"
-    assert by_taxid["33892"]["snp_profile"]["33892_GCA_000234725.1_ASM23472v1"]["snp_count"] == 3
+    assert sorted(by_taxid) == ["1773"]
+    assert by_taxid["1773"]["name"] == "Mycobacterium tuberculosis"
+    assert by_taxid["1773"]["taxonomic_assignment"]["taxon_id"] == 1773
+    assert by_taxid["1773"]["taxonomic_assignment"]["closest_variant"]["taxon_id"] == 33892
+    assert by_taxid["1773"]["snp_profile"]["H37Rv"]["snp_count"] == 2
+    assert by_taxid["1773"]["lineage_profile"]["H37Rv"]["best_lineage"] == "lineage4"
+    assert by_taxid["1773"]["snp_profile"]["33892_GCA_000234725.1_ASM23472v1"]["snp_count"] == 3
 
 
-def test_mpox_parent_and_clade_are_not_duplicated_in_final_report_index():
+def test_mpox_parent_and_clade_are_reported_as_one_species_level_event():
     event = {
         "name": "Orthopoxvirus monkeypox",
         "taxon_id": 3431483,
@@ -246,11 +247,12 @@ def test_mpox_parent_and_clade_are_not_duplicated_in_final_report_index():
         lineage_profile=lineage_profile,
     )
 
-    assert sorted(by_taxid) == ["3706793"]
-    assert by_taxid["3706793"]["name"] == "Monkeypox virus cladeIIb"
-    assert by_taxid["3706793"]["clustering"]["parent_context"]["taxon_id"] == 3431483
-    assert by_taxid["3706793"]["snp_profile"]["NC_063383"]["snp_count"] == 66
-    assert by_taxid["3706793"]["lineage_profile"]["NC_063383"]["best_lineage"] == "B.1.5"
+    assert sorted(by_taxid) == ["3431483"]
+    assert by_taxid["3431483"]["name"] == "Orthopoxvirus monkeypox"
+    assert by_taxid["3431483"]["taxonomic_assignment"]["taxon_id"] == 3431483
+    assert by_taxid["3431483"]["taxonomic_assignment"]["closest_variant"]["taxon_id"] == 3706793
+    assert by_taxid["3431483"]["snp_profile"]["NC_063383"]["snp_count"] == 66
+    assert by_taxid["3431483"]["lineage_profile"]["NC_063383"]["best_lineage"] == "B.1.5"
 
 
 def test_final_report_is_taxid_indexed_and_writes_subreports(tmp_path, monkeypatch):
@@ -324,7 +326,7 @@ def test_final_report_is_taxid_indexed_and_writes_subreports(tmp_path, monkeypat
     assert final_report == str(tmp_path / "sample.json")
     assert sorted(detection_events) == ["1773"]
     assert detection_events["1773"]["name"] == "Mycobacterium tuberculosis"
-    assert detection_events["1773"]["clustering"]["mean_DOC"] == 12
+    assert detection_events["1773"]["taxonomic_assignment"]["mean_DOC"] == 12
     assert detection_events["1773"]["snp_profile"]["H37Rv"]["snp_count"] == 1
     assert detection_events["1773"]["lineage_profile"]["H37Rv"]["best_lineage"] == "lineage4"
     assert "Clustering_results" not in detection_events

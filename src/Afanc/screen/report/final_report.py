@@ -199,6 +199,12 @@ def _write_report_subreports(args, clustering_results, snp_profile=None, lineage
             "record_count": len(lineage_profile or {}),
         },
     }
+    if hasattr(args, "kronaWDir"):
+        krona_report = path.join(args.kronaWDir, f"{args.output_prefix}.krona.html")
+        subreports["krona"] = {
+            "path": path.abspath(krona_report),
+            "record_count": None,
+        }
 
     payloads = {
         "clustering": clustering_results,
@@ -214,41 +220,26 @@ def _write_report_subreports(args, clustering_results, snp_profile=None, lineage
 
 
 def _index_detection_event_by_taxid(by_taxid, event, snp_profile=None, lineage_profile=None):
-    primary_event, parent_context = _primary_detection_event(event)
-    taxid = str(primary_event["taxon_id"])
+    taxid = str(event["taxon_id"])
     record = by_taxid.setdefault(
         taxid,
         {
             "taxon_id": taxid,
-            "name": primary_event["name"],
-            "clustering": None,
+            "name": event["name"],
+            "taxonomic_assignment": None,
             "snp_profile": {},
             "lineage_profile": {},
         },
     )
-    record["name"] = primary_event["name"]
-    record["clustering"] = primary_event
-    if parent_context is not None:
-        record["clustering"]["parent_context"] = parent_context
-    _attach_profiles_for_event(record, primary_event, parent_context, snp_profile=snp_profile, lineage_profile=lineage_profile)
+    record["name"] = event["name"]
+    record["taxonomic_assignment"] = event
+    _attach_profiles_for_event(record, event, snp_profile=snp_profile, lineage_profile=lineage_profile)
 
 
-def _primary_detection_event(event):
-    if "closest_variant" not in event:
-        return event, None
-
-    parent_context = {
-        key: value
-        for key, value in event.items()
-        if key != "closest_variant"
-    }
-    return event["closest_variant"], parent_context
-
-
-def _attach_profiles_for_event(record, event, parent_context=None, snp_profile=None, lineage_profile=None):
+def _attach_profiles_for_event(record, event, snp_profile=None, lineage_profile=None):
     accessions = _event_accession_keys(event)
-    if parent_context is not None:
-        accessions.update(_event_accession_keys(parent_context))
+    if isinstance(event.get("closest_variant"), dict):
+        accessions.update(_event_accession_keys(event["closest_variant"]))
     for accession in accessions:
         if snp_profile and accession in snp_profile:
             record["snp_profile"][accession] = snp_profile[accession]

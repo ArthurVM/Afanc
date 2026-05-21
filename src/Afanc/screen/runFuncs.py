@@ -20,6 +20,7 @@ def runScreen(args):
 
     ## screen with kraken2
     out_json = runFPScreen(args)
+    makeKronaChart(args)
 
     ## if no_map is True then exit Afanc screen
     if args.no_map:
@@ -211,6 +212,33 @@ def profileLineages(args, snp_profile, mapped_bams):
     return lineage_profile
 
 
+def makeKronaChart(args):
+    """Generate a Krona chart from the filtered Kraken-like screen report."""
+    from Afanc.utilities.krona import run_krona_from_kraken_report
+
+    subprocessID = "KRONA"
+    vprint(
+        subprocessID,
+        "Making screen Krona chart...",
+        "prYellow",
+    )
+
+    filtered_report = path.join(args.k2WDir, f"{args.output_prefix}.filtered.k2.report.txt")
+    raw_report = path.join(args.k2WDir, f"{args.output_prefix}.k2.report.txt")
+    krona_input = filtered_report if path.exists(filtered_report) else raw_report
+    output_html = path.join(args.kronaWDir, f"{args.output_prefix}.krona.html")
+
+    run_krona_from_kraken_report(
+        krona_input,
+        output_html,
+        stdout=args.stdout,
+        stderr=args.stderr,
+        subprocess_id=subprocessID,
+    )
+
+    chdir(args.runWDir)
+
+
 def cleanOutdir(args, final_report):
     """ Cleans the output directory according to provided arguments.
 
@@ -246,6 +274,9 @@ def cleanOutdir(args, final_report):
         if path.isdir(args.runWDir):
             new_final_report_path = path.join(args.baseRunDir, final_report.split("/")[-1])
             move(final_report, new_final_report_path)
+            krona_report = path.join(args.kronaWDir, f"{args.output_prefix}.krona.html")
+            if path.isfile(krona_report):
+                move(krona_report, path.join(args.baseRunDir, path.basename(krona_report)))
             rmtree(args.runWDir, ignore_errors=True)
         else:
             ## If it fails, inform the user.

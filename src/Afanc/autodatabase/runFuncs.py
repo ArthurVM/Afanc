@@ -239,9 +239,8 @@ def makeVariantIndex(args):
 
 def makeKronaChart(args):
 
-    from ..utilities.runCommands import command
+    from ..utilities.krona import run_krona_from_kraken_report
 
-    ## TODO: Fix this module for custom taxonomy
     subprocessID = "KRONA"
     vprint(
         subprocessID,
@@ -251,8 +250,13 @@ def makeKronaChart(args):
 
     mkchdir(args.krona_WDir)
 
-    kronachart_line = f"ktImportTaxonomy -m 3 -t 5 {args.kraken2_WDir}/database.txt -o database.html"
-    stdout, stderr = command(kronachart_line, "KRONA").run_comm(1, args.stdout, args.stderr, raise_on_error=False)
+    run_krona_from_kraken_report(
+        path.join(args.kraken2_WDir, "database.txt"),
+        path.join(args.krona_WDir, "database.html"),
+        stdout=args.stdout,
+        stderr=args.stderr,
+        subprocess_id=subprocessID,
+    )
 
     chdir(args.autoDB_WDir)
 

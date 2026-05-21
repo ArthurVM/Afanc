@@ -72,6 +72,9 @@ def genScreenDirStructure(args):
     args.profilerWDir = path.join(args.runWDir, "profilerWD")
     mkdir(args.profilerWDir)  ## make directory to contain SNP and lineage profiling data
 
+    args.kronaWDir = path.join(args.runWDir, "kronaWD")
+    mkdir(args.kronaWDir)  ## make directory to contain Krona reports
+
 
 def initAutoDBDirStructure(args):
     """ Initialise (but does not create) the file structure to deposit Autodatabase run files.
