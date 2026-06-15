@@ -59,7 +59,8 @@ setup(
     'openpyxl>=3.1',
     'pysam>=0.18.0',
     'pandas>=1.3.4',
-    'scipy>=1.7.1'
+    'scipy>=1.7.1',
+    'scikit-learn>=1.3'
     ],
     entry_points={
         'console_scripts': [
