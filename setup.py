@@ -30,8 +30,8 @@ exec(open('src/Afanc/_version.py').read())
 setup(
     name='Afanc',
     version=__version__,
-    description='General purpose high-resolution metagenomics deconvolution.',
-    license="MIT",
+    description='High-resolution taxonomic deconvolution.',
+    license="GPL 3.0",
     long_description=long_description,
     author='Arthur V. Morris',
     author_email='morrisa28@cardiff.ac.uk',
