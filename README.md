@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Afanc: High Resolution Metagenomic Deconvolution
 
 <p align="center">
