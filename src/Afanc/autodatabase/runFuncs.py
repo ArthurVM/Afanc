@@ -53,6 +53,9 @@ def runAutoDB(args):
     ## make a Krona chart for pleasing visualisation
     makeKronaChart(args)
 
+    ## write assembly inclusion/rejection manifest workbook
+    makeManifest(args)
+
     ## clean the output directory
     cleanOutdir(args)
 
@@ -176,6 +179,8 @@ def assemblyQC(args, fasta_dict, mapping_dict):
 
 
 def makeK2db(args):
+    """ Creates the kraken2 database
+    """
 
     from ..utilities.runCommands import command
 
@@ -190,10 +195,7 @@ def makeK2db(args):
 
     mkchdir("taxonomy", 0)
 
-    ## Kraken2 only needs the prepared local taxonomy here because FASTA
-    ## headers already contain explicit kraken:taxid fields. Calling
-    ## --download-taxonomy can fail on restricted rsync/ftp configurations and
-    ## would overwrite the taxonomy edited by taxadd.
+    ## probably need to sort out this function to keep this an orchestrator only
     for taxdump_file in ["names.dmp", "nodes.dmp", "merged.dmp"]:
         source_taxdump = path.join(args.autoDB_WDir, "ncbi_taxonomy", taxdump_file)
         if path.exists(source_taxdump):
@@ -238,6 +240,8 @@ def makeVariantIndex(args):
 
 
 def makeKronaChart(args):
+    """ Create the Krona chart
+    """
 
     from ..utilities.krona import run_krona_from_kraken_report
 
@@ -259,6 +263,26 @@ def makeKronaChart(args):
     )
 
     chdir(args.autoDB_WDir)
+
+
+def makeManifest(args):
+    """Create a spreadsheet manifest describing assembly fate in the database."""
+    from .manifest import write_autodatabase_manifest
+
+    subprocessID = "MANIFEST"
+    vprint(
+        subprocessID,
+        "Writing assembly manifest workbook...",
+        "prYellow"
+    )
+
+    manifest_path = write_autodatabase_manifest(args)
+
+    vprint(
+        subprocessID,
+        f"Assembly manifest written to {manifest_path}",
+        "prGreen"
+    )
 
 
 def cleanOutdir(args):

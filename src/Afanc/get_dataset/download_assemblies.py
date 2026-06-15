@@ -1,8 +1,8 @@
 import json
 
-from sys import stdout, exit
+from pathlib import Path
 from shutil import move, rmtree
-from os import mkdir, chdir, path, listdir, getcwd
+from os import chdir, getcwd
 
 from Afanc.utilities.runCommands import command
 from Afanc.utilities.generalUtils import vprint
@@ -12,20 +12,28 @@ def download_genome(assembly, args):
     """ Download a genome from genbank using the entrez suite.
     """
 
-    if not args.accessions:
-        # runline = f"esearch -db assembly -query \'{assembly}[organism] AND latest[filter]\' | esummary | xtract -pattern DocumentSummary -element FtpPath_GenBank"
-        runline = f"datasets summary genome taxon \"{assembly}\" --assembly-level complete \
-                    --exclude-atypical \
-                    --mag exclude \
-                    --tax-exact-match \
-                    --limit 100 \
-                    --assembly-version latest \
-                    --assembly-source GenBank"
+    if args.accessions:
+        raise ValueError("Accession downloads are deprecated. Please provide species names instead.")
 
-    else:
-        print(f"Accessions Download deprecated. Please use names.")
-        exit(122)
-        runline = f"esearch -db assembly -query \'{assembly}\' | esummary | xtract -pattern DocumentSummary -element FtpPath_GenBank"
+    runline = [
+        "datasets",
+        "summary",
+        "genome",
+        "taxon",
+        assembly,
+        "--assembly-level",
+        "complete",
+        "--exclude-atypical",
+        "--mag",
+        "exclude",
+        "--tax-exact-match",
+        "--limit",
+        "100",
+        "--assembly-version",
+        "latest",
+        "--assembly-source",
+        "GenBank",
+    ]
 
     tmp_ftp_dir = command(runline, "DOWNLOAD_HITS").run_comm_quiet(1, args.stdout, args.stderr)
 
@@ -34,7 +42,7 @@ def download_genome(assembly, args):
 
     ## check there are sequences on GenBank available for this species
     if out["total_count"] == 0:
-        return
+        return []
     
     mkchdir(f"./{assembly.replace(' ', '_')}")
     
@@ -53,20 +61,44 @@ def download_genome(assembly, args):
                                     k["average_nucleotide_identity"]["best_ani_match"]["organism_name"], \
                                     k["assembly_info"]["assembly_level"], \
                                     k["assembly_stats"]["scaffold_n50"]])
-        except:
+        except (KeyError, TypeError):
             continue
+
+    if not accessions_list:
+        return []
         
     ## sort all accessions by N50 to select the highest quality
     sorted_accs_list = sorted(accessions_list, key=lambda x: x[5], reverse=True)
     
-    accs_list = " ".join([acc[0] for acc in sorted_accs_list[:num_assemblies]])
+    selected_accessions = [acc[0] for acc in sorted_accs_list[:num_assemblies]]
     species_id = assembly.replace(' ', '_')
 
-    dl_runline = f"datasets download genome accession {accs_list} --include genome --filename tmp_{species_id}.zip"
-    stdout, stderr = command(dl_runline, "DOWNLOAD").run_comm_quiet(1, args.stdout, args.stderr)
+    zip_path = Path(f"tmp_{species_id}.zip")
+    extract_dir = Path(f"tmp_{species_id}")
+    dl_runline = [
+        "datasets",
+        "download",
+        "genome",
+        "accession",
+        *selected_accessions,
+        "--include",
+        "genome",
+        "--filename",
+        str(zip_path),
+    ]
+    command(dl_runline, "DOWNLOAD").run_comm_quiet(1, args.stdout, args.stderr)
 
-    unzip_runline = f"unzip tmp_{species_id}.zip -d tmp_{species_id}; mv tmp_{species_id}/ncbi_dataset/data/*/*fna ./; rm -r ./tmp_{species_id}*"
-    stdout, stderr = command(unzip_runline, "DOWNLOAD").run_comm_quiet(1, args.stdout, args.stderr)
+    command(["unzip", str(zip_path), "-d", str(extract_dir)], "DOWNLOAD").run_comm_quiet(1, args.stdout, args.stderr)
+
+    for fasta_path in (extract_dir / "ncbi_dataset" / "data").glob("*/*.fna"):
+        move(str(fasta_path), ".")
+
+    if extract_dir.exists():
+        rmtree(extract_dir)
+    if zip_path.exists():
+        zip_path.unlink()
+
+    return selected_accessions
 
 
 def parse_names_file(txt):
@@ -74,7 +106,7 @@ def parse_names_file(txt):
     """
 
     with open(txt, 'r') as fin:
-        assemblyIDs = [ line.strip("\n") for line in fin.readlines() ]
+        assemblyIDs = [line.strip() for line in fin if line.strip()]
 
     return assemblyIDs
 
@@ -87,39 +119,39 @@ def runGet_dataset(args):
     vprint(
         subprocessID,
         f"Downloading assemblies...",
-        "prYellow"
+        "prYellow",
+        args.stdout,
     )
+
+    if args.accessions:
+        raise ValueError("Accession downloads are deprecated. Please provide species names instead.")
 
     cwd = getcwd()
     assemblyIDs = parse_names_file(args.ID_file)
     numIDs = len(assemblyIDs)
 
-    print(f"Found {numIDs} IDs in {args.ID_file}\n")
+    print(f"Found {numIDs} IDs in {args.ID_file}\n", file=args.stdout, flush=True)
 
     mkchdir(f"{cwd}/{args.output_prefix}")
 
-    for i, id in enumerate(assemblyIDs):
+    for i, assembly_id in enumerate(assemblyIDs):
 
-        if "/" in id or "\\" in id:
-            stdout.write(f"Invalid characters found in {id}. Skipping...\n")
+        if "/" in assembly_id or "\\" in assembly_id:
+            print(f"Invalid characters found in {assembly_id}. Skipping...", file=args.stdout, flush=True)
             continue
 
-        stdout.write(f"\rDownloading assemblies for {id} ({i+1}/{numIDs})\033[K\r")
-        stdout.flush()
+        print(f"Downloading assemblies for {assembly_id} ({i+1}/{numIDs})", file=args.stdout, flush=True)
 
         try:
-            if not args.accessions:
-                download_genome(id, args)
-
-            else:
-                download_genome(id, 1, args.accessions)
-        except:
-            print(f"Something went wrong attempting to download {id}...\033[K")
+            download_genome(assembly_id, args)
+        except Exception as exc:
+            print(f"Something went wrong attempting to download {assembly_id}: {exc}", file=args.stderr, flush=True)
 
         chdir(f"{cwd}/{args.output_prefix}")
 
     vprint(
         subprocessID,
         f"Done. Assemblies can be found in ./{args.output_prefix}.",
-        "prGreen"
+        "prGreen",
+        args.stdout,
     )

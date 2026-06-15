@@ -26,6 +26,8 @@ def run_snp_profiling(
     for accession, mapping_record in mapped_bams.items():
         bam_path = Path(mapping_record["bam"])
         source_reference = Path(mapping_record["assembly"])
+
+        ## keep a local ref for var calling
         reference_fasta = prepare_variant_reference(
             source_reference=source_reference,
             accession=accession,
@@ -39,6 +41,8 @@ def run_snp_profiling(
         if args.variant_caller == "freebayes":
             caller_kwargs["cpus"] = args.threads
 
+        ## TODO caller parameters are deliberately thin here
+        ## probably need to expand
         caller_outputs = run_variant_caller(
             bam_path=bam_path,
             reference_fasta=reference_fasta,
@@ -49,6 +53,8 @@ def run_snp_profiling(
 
         vcf_for_json = caller_outputs.get("filtered_vcf") or caller_outputs["raw_vcf"]
         depth_path = output_prefix.with_suffix(".depth.bed")
+
+        ## missing sites from depth
         write_depth_bed(
             bam_path=bam_path,
             output_depth=depth_path,
@@ -96,6 +102,8 @@ def prepare_variant_reference(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_reference = output_dir / f"{accession}.variant_ref.fa"
 
+    ## TODO later this should probably short circuit if the source reference has not changed
+    ## rewriting is safe just a bit wasteful on repeat runs
     opener = gzip.open if str(source_reference).endswith(".gz") else open
     with opener(source_reference, "rt") as fin, output_reference.open("w") as fout:
         for record in SeqIO.parse(fin, "fasta"):
@@ -114,6 +122,8 @@ def write_depth_bed(
     stdout: Optional[Any] = None,
     stderr: Optional[Any] = None,
 ) -> Path:
+    ## samtools depth table rather than strictly a bed
+    ## TODO probably rename later
     command(f"samtools depth -aa {bam_path} > {output_depth}", "VARCALL").run_comm_quiet(0, stdout, stderr)
     return output_depth
 
@@ -129,6 +139,7 @@ def vcf_to_snp_json(
     min_missing_depth: int = 10,
 ) -> Dict[str, Any]:
     """Convert a VCF and depth BED into Ardal-compatible SNP JSON."""
+    ## flat list of allele IDs plus missing positions for Ardal
     allele_map = sample_alleles_from_vcf(
         vcf_path=vcf_path,
         min_qual=min_qual,
@@ -180,6 +191,9 @@ def sample_alleles_from_vcf(
                 continue
 
             chrom, pos, _id, ref, alt_field, qual, filt, info = parts[:8]
+
+            ## only SNP alleles are useful for the current lineage models
+            ## indels etc can in principal be supported but will probably cause issues due to unstable calling
             if len(ref) != 1 or ref.upper() not in DNA4:
                 continue
             if not passes_filters(
@@ -195,6 +209,8 @@ def sample_alleles_from_vcf(
 
             alts = alt_field.split(",")
             if len(parts) < 10:
+                ## some callers can emit VCFs without genotype columns
+                ## in that case every simple ALT is treated as present
                 for alt in alts:
                     if is_simple_snp(ref, alt):
                         allele_map.setdefault("sample", set()).add(f"{chrom}.{pos}.{ref.upper()}.{alt.upper()}")
@@ -204,6 +220,8 @@ def sample_alleles_from_vcf(
             try:
                 gt_index = fmt.index("GT")
             except ValueError:
+                ## no GT means we cannot confidently tell which ALT allele was
+                ## called for the sample so skip rather than invent support
                 continue
 
             for sample_offset, sample_id in enumerate(sample_ids):
@@ -217,6 +235,8 @@ def sample_alleles_from_vcf(
                 if not gt_value or gt_value == ".":
                     continue
 
+                ## handles phased and unphased genotypes
+                ## reference alleles are ignored because the JSON stores variant alleles only
                 for allele_token in re.split(r"[|/]", gt_value):
                     if not allele_token or allele_token == ".":
                         continue
@@ -258,6 +278,8 @@ def missing_positions_from_bed(depth_path: Path, min_depth: int) -> List[List[st
             if key in seen:
                 continue
             seen.add(key)
+            ## ardal expects missing positions as chrom pos not as the allele style chrom pos string
+            ## kind of annoying might change
             missing.append([chrom, pos])
 
     return missing
@@ -283,6 +305,8 @@ def passes_filters(
     info_field: str,
 ) -> bool:
     if qual_field == ".":
+        ## missing QUAL is caller dependent
+        ## default is conservative because lineage models should not be driven by weak unscored sites
         if not accept_missing_qual:
             return False
     else:
@@ -296,6 +320,8 @@ def passes_filters(
         return False
 
     if min_dp is not None:
+        ## TODO format sample level depth would be better for multi sample vcfs
+        ## info depth is enough for the current single bam workflow
         dp = parse_info_dp(info_field)
         if dp is None or dp < min_dp:
             return False

@@ -2,8 +2,12 @@ import importlib.util
 from argparse import Namespace
 from pathlib import Path
 
+import pytest
+
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "build_canonical_model.py"
+if not SCRIPT_PATH.exists():
+    pytest.skip("build_canonical_model.py is not distributed with this tree", allow_module_level=True)
 SPEC = importlib.util.spec_from_file_location("build_canonical_model", SCRIPT_PATH)
 build_canonical_model = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

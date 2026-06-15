@@ -58,6 +58,16 @@ def resolve_profile_for_event(event: Mapping[str, Any], manifest: Mapping[str, A
     return _resolve_profile_by_name(profiles, name_candidates, allow_contains=True)
 
 
+def resolve_profile_for_species(species_name: str, manifest: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """Resolve an enabled profile from a user-provided species/profile name."""
+    profiles = manifest.get("profiles") or {}
+    name_candidates = [str(species_name)]
+    exact_profile = _resolve_profile_by_name(profiles, name_candidates, allow_contains=False)
+    if exact_profile is not None:
+        return exact_profile
+    return _resolve_profile_by_name(profiles, name_candidates, allow_contains=True)
+
+
 def _event_candidate_taxids(event: Mapping[str, Any]) -> list[str]:
     candidate_taxids = []
 

@@ -1,1 +1,0 @@
-Warning: Taxon 18 has fewer than 3 samples. Samples have been added to database without quality control.

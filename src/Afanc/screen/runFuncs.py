@@ -171,7 +171,7 @@ def profileSNPs(args, mapped_bams):
 
 def profileLineages(args, snp_profile, mapped_bams):
     """Classify lineage profiles where database profile models are available."""
-    from .variant_profiler.bayesian_profile import run_lineage_classification
+    from Afanc.classifier.bayesian_profile import run_lineage_classification
 
     if args.no_lineage_classify:
         return {

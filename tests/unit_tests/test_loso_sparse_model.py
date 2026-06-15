@@ -2,9 +2,12 @@ import importlib.util
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 
-MODULE_PATH = Path("/home/arthur/BioInf/Afanc_MAIN/Afanc/scripts/loso_sparse_model.py")
+MODULE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "loso_sparse_model.py"
+if not MODULE_PATH.exists():
+    pytest.skip("loso_sparse_model.py is not distributed with this tree", allow_module_level=True)
 SPEC = importlib.util.spec_from_file_location("loso_sparse_model", MODULE_PATH)
 loso_sparse_model = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(loso_sparse_model)
