@@ -118,15 +118,28 @@ def prYellow(sp):
     return f"\033[93m{sp}\033[00m"
 
 
-def vprint(subprocess, info_text, colour, f=sys.stdout, end="\n"):
+def vprint(subprocess, info_text, colour, f=None, end="\n"):
     """ controls process output
     """
 
+    if f is None:
+        f = sys.stdout
+
     time = strftime("%H:%M:%S", localtime())
+    message = f"\n{time} {colfuncs[colour](subprocess)} :: {info_text}"
 
     print(
-        f"\n{time} {colfuncs[colour](subprocess)} :: {info_text}",
+        message,
         end=end,
         file=f,
         flush=True,
     )
+
+    if f not in (sys.stdout, sys.stderr):
+        console = sys.stderr if colour == "prRed" or str(subprocess).upper() == "ERROR" else sys.stdout
+        print(
+            message,
+            end=end,
+            file=console,
+            flush=True,
+        )

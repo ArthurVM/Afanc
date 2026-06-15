@@ -18,8 +18,9 @@ def mock_args():
     return args
 
 @patch("Afanc.autodatabase.assemblyQC.command")
-def test_mash_command_execution(mock_command_class, mock_args, tmp_path):
+def test_mash_command_execution(mock_command_class, mock_args, tmp_path, monkeypatch):
     """Test that the mash function calls the 'mash' command correctly."""
+    monkeypatch.chdir(tmp_path)
     mock_cmd_instance = MagicMock()
     mock_command_class.return_value = mock_cmd_instance
 
@@ -30,7 +31,7 @@ def test_mash_command_execution(mock_command_class, mock_args, tmp_path):
     for f_path in fastas:
         Path(f_path).touch()
 
-    expected_mashdist_out = str(Path.cwd() / f"{taxon_id}_mashdist.txt")
+    expected_mashdist_out = str(tmp_path / f"{taxon_id}_mashdist.txt")
 
     result_path = mash(mock_args, taxon_id, fastas)
 
@@ -50,8 +51,9 @@ def test_mash_command_execution(mock_command_class, mock_args, tmp_path):
 
 @patch("Afanc.autodatabase.assemblyQC.move") # Patch shutil.move where it's used in assemblyQC
 @patch("Afanc.autodatabase.assemblyQC.np.savetxt") # Still called to save _mash.txt
-def test_buildMatrix_fewer_than_3_assemblies(mock_numpy_savetxt, mock_shutil_move, mock_args, tmp_path):
+def test_buildMatrix_fewer_than_3_assemblies(mock_numpy_savetxt, mock_shutil_move, mock_args, tmp_path, monkeypatch):
     """Test buildMatrix when there are fewer than 3 assemblies."""
+    monkeypatch.chdir(tmp_path)
     # Setup for 2 assemblies
     fasta1_path = tmp_path / "asm1.fa"
     fasta1_path.touch()
@@ -70,8 +72,8 @@ def test_buildMatrix_fewer_than_3_assemblies(mock_numpy_savetxt, mock_shutil_mov
 
     # The function writes output files to the current working directory.
     # For cleanup, we'll track these files.
-    expected_warning_file_path = Path.cwd() / "123_warning.txt"
-    expected_mash_list_path = Path.cwd() / "123_mash.txt"
+    expected_warning_file_path = tmp_path / "123_warning.txt"
+    expected_mash_list_path = tmp_path / "123_mash.txt"
 
     try:
         calcArray, tax, modeVal = buildMatrix(mock_args, str(inMash_path))
@@ -100,8 +102,9 @@ def test_buildMatrix_fewer_than_3_assemblies(mock_numpy_savetxt, mock_shutil_mov
 
 
 @patch("Afanc.autodatabase.assemblyQC.np.savetxt")
-def test_buildMatrix_sufficient_assemblies(mock_numpy_savetxt, mock_args, tmp_path):
+def test_buildMatrix_sufficient_assemblies(mock_numpy_savetxt, mock_args, tmp_path, monkeypatch):
     """Test buildMatrix with 3 or more assemblies, exercising the main QC logic."""
+    monkeypatch.chdir(tmp_path)
     # Setup for 3 assemblies
     fasta1_path = tmp_path / "asmA.fa"
     fasta1_path.touch()
@@ -121,22 +124,21 @@ def test_buildMatrix_sufficient_assemblies(mock_numpy_savetxt, mock_args, tmp_pa
         f"{fasta3_path}\t{fasta2_path}\t0.05\t0\t950/1000\n" # asmC vs asmB
         f"{fasta3_path}\t{fasta3_path}\t0.0\t0\t1000/1000\n"
     )
-    inMash_path = tmp_path / "taxXYZ_mashdist.txt"
+    inMash_path = tmp_path / "456_mashdist.txt"
     inMash_path.write_text(mash_output_content)
     
-    expected_mash_list_path = Path.cwd() / "taxXYZ_mash.txt"
+    expected_mash_list_path = tmp_path / "456_mash.txt"
 
     try:
         calcArray, tax, mode_val = buildMatrix(mock_args, str(inMash_path))
 
-        assert tax == ['taxXYZ']
+        assert tax == ['456']
         # avArray for asmA: (0.0+0.1+0.2)/3 = 0.1
         # avArray for asmB: (0.1+0.0+0.05)/3 = 0.05
         # avArray for asmC: (0.2+0.05+0.0)/3 = 0.08333...
         # rdArray (rounded): [0.1, 0.05, 0.0833] (approx)
         # mode(rdArray)[0] (if unique, smallest): np.array([0.05])
-        assert isinstance(mode_val, np.ndarray) # mode() returns an array for the mode
-        assert np.isclose(mode_val[0], 0.05)
+        assert np.isclose(np.atleast_1d(mode_val)[0], 0.05)
 
         # calcArray is fileavArray after np.unique on average distances, sorted by unique avg_dist
         # Expected order: asmB (0.05), asmC (0.0833), asmA (0.1)

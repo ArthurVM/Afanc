@@ -56,6 +56,7 @@ setup(
     install_requires=[
     'Biopython>=1.79',
     'numpy>=1.20.3',
+    'openpyxl>=3.1',
     'pysam>=0.18.0',
     'pandas>=1.3.4',
     'scipy>=1.7.1'

@@ -1,6 +1,8 @@
 import pytest
 from pathlib import Path
+from io import StringIO
 from Afanc.utilities.generalUtils import isFile, isDir, checkDate
+from Afanc.utilities.generalUtils import vprint
 from Afanc.utilities.exceptions import FileNotFoundErrorAfanc, DirectoryNotFoundErrorAfanc, InvalidFileFormatError
 
 
@@ -53,3 +55,27 @@ def test_checkDate(date_str, expected_valid):
     else:
         with pytest.raises(InvalidFileFormatError):
             checkDate(date_str)
+
+
+def test_vprint_tees_log_stream_to_console(capsys):
+    log_stream = StringIO()
+
+    vprint("TEST", "hello", "prYellow", log_stream)
+
+    assert "TEST" in log_stream.getvalue()
+    assert ":: hello" in log_stream.getvalue()
+    captured = capsys.readouterr()
+    assert "TEST" in captured.out
+    assert ":: hello" in captured.out
+
+
+def test_vprint_tees_error_log_stream_to_stderr(capsys):
+    log_stream = StringIO()
+
+    vprint("ERROR", "bad", "prRed", log_stream)
+
+    captured = capsys.readouterr()
+    assert "ERROR" in log_stream.getvalue()
+    assert ":: bad" in log_stream.getvalue()
+    assert "ERROR" in captured.err
+    assert ":: bad" in captured.err
