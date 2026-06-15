@@ -1,5 +1,4 @@
 import json
-from collections import defaultdict
 from importlib.metadata import version
 
 from .runCommands import command
@@ -19,14 +18,9 @@ def getVersionsAutodatabase(args):
         "ncbi_taxonomy_date" : args.ncbi_date
     }
 
-    mash_stdout, mash_stderr = command(f"mash --version", "GET-VERSIONS").run_comm_quiet(1)
-    version_dict["mash"] = mash_stdout.decode().strip("\n")
+    version_dict["mash"] = _get_command_version(["mash", "--version"])
 
-    mash_stdout, mash_stderr = command(f"fastANI -v", "GET-VERSIONS").run_comm_quiet(1)
-    version_dict["fastANI"] = mash_stdout.decode().strip("\n")
-
-    k2_stdout, k2_stderr = command(f"kraken2 -v", "GET-VERSIONS").run_comm_quiet(1)
-    version_dict["Kraken2"] = k2_stdout.decode().split("\n")[0].split("version ")[1]
+    version_dict["Kraken2"] = _parse_kraken_version(_get_command_version(["kraken2", "-v"]))
 
     versions_json = f"{args.autoDB_WDir}/versions.json"
 
@@ -47,13 +41,37 @@ def getVersionsScreen():
         "scipy" : version("scipy")
     }
 
-    k2_stdout, k2_stderr = command(f"kraken2 -v", "GET-VERSIONS").run_comm_quiet(1)
-    version_dict["Kraken2"] = k2_stdout.decode().split("\n")[0].split("version ")[1]
+    version_dict["Kraken2"] = _parse_kraken_version(_get_command_version(["kraken2", "-v"]))
 
-    bt2_stdout, bt2_stderr = command(f"bowtie2 --version", "GET-VERSIONS").run_comm_quiet(1)
-    version_dict["Bowtie2"] = bt2_stdout.decode().split("\n")[0].split("version ")[1]
-
-    fastANI_stdout, fastANI_stderr = command(f"fastANI -v", "GET-VERSIONS").run_comm_quiet(1)
-    version_dict["fastANI"] = fastANI_stderr.decode().split("\n")[0].split("version ")[1]
+    version_dict["BWA"] = _get_command_version("bwa 2>&1 | head -n 1", first_nonempty_line=True)
+    version_dict["samtools"] = _get_command_version(["samtools", "--version"], first_nonempty_line=True)
+    version_dict["samclip"] = _get_command_version(["samclip", "--version"], first_nonempty_line=True)
+    version_dict["freebayes"] = _get_command_version(["freebayes", "--version"], first_nonempty_line=True)
+    version_dict["bcftools"] = _get_command_version(["bcftools", "--version"], first_nonempty_line=True)
 
     return version_dict
+
+
+def _get_command_version(argv, first_nonempty_line=False):
+    try:
+        stdout, stderr = command(argv, "GET-VERSIONS").run_comm_quiet(1)
+    except Exception as exc:
+        return f"unavailable: {exc}"
+
+    text = stdout.decode(errors="replace").strip()
+    if not text:
+        text = stderr.decode(errors="replace").strip()
+
+    if first_nonempty_line:
+        for line in text.splitlines():
+            if line.strip():
+                return line.strip()
+        return ""
+
+    return text
+
+
+def _parse_kraken_version(version_text):
+    if "version " in version_text:
+        return version_text.split("\n")[0].split("version ", 1)[1]
+    return version_text

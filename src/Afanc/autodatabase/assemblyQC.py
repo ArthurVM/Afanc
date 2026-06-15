@@ -34,7 +34,7 @@ def buildMatrix(args, inMash):
 
     # get tax ID
     regex = re.compile(r'\d+')
-    tax = regex.findall(str(inMash))
+    tax = regex.findall(path.basename(str(inMash)))
 
     # calculate number of fastas, and use to split iniArray and create mash matrix
     numFastas = math.sqrt(len(iniArray))
@@ -46,7 +46,7 @@ def buildMatrix(args, inMash):
     avArray = sumArray/numFastas
 
     # get filenames and append to average distances
-    filenames = iniArray[0:int(numFastas), 0]
+    filenames = pd.unique(iniArray[:, 0])
     fileMash = np.column_stack((filenames, mashMatrix, avArray))
     fileavArray = np.column_stack((filenames, avArray))
 

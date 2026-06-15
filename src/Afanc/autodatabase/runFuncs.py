@@ -1,6 +1,7 @@
 import json
 from shutil import move, rmtree
 from os import mkdir, chdir, path, listdir, rename, getcwd, remove
+from shutil import copyfile
 from collections import defaultdict
 
 from ..utilities.runCommands import command
@@ -13,6 +14,11 @@ def runAutoDB(args):
     """
     from ..utilities.makeWD import initAutoDBDirStructure
     from ..utilities.getVersions import getVersionsAutodatabase
+
+    ## check the working directory doesn't already exist
+    if path.exists(args.output_prefix):
+        vprint("ERROR", f"Output directory {args.output_prefix} already exists! Aborting to prevent accidental data loss...", "prRed")
+        exit(1)
 
     subprocessID = "MAIN"
     vprint(
@@ -27,7 +33,7 @@ def runAutoDB(args):
     ## construct root directory to deposit results
     mkchdir(args.autoDB_WDir)
 
-    fasta_db_path = args.fastaDir
+    fasta_db_path = str(args.fastaDir)
 
     ## capture python package and software versions for the autodatabase module in a JSON file
     getVersionsAutodatabase(args)
@@ -47,12 +53,15 @@ def runAutoDB(args):
     ## make a Krona chart for pleasing visualisation
     makeKronaChart(args)
 
+    ## write assembly inclusion/rejection manifest workbook
+    makeManifest(args)
+
     ## clean the output directory
     cleanOutdir(args)
 
     vprint(
         "FINISHED",
-        "Pipeline terminated successfully.",
+        "Afanc-autodatabase finished successfully.",
         "prGreen"
     )
 
@@ -63,35 +72,51 @@ def preprocessing(args, fasta_db_path):
 
     from .prepareNewFasta import getTaxonomy
     from .taxadd import taxadd_Main
-
+    
     subprocessID = "PREPROCESSING"
-    vprint(
-        subprocessID,
-        f"Downloading NCBI-taxonomy files...",
-        "prYellow"
-    )
-
     mkchdir("ncbi_taxonomy")
 
-    ## get ncbi taxonomy for given date
-    names, nodes = getTaxonomy(args, args.ncbi_date)
+    if args.ncbi_tax_db == False:
+        vprint(
+            subprocessID,
+            f"Downloading NCBI-taxonomy files...",
+            "prYellow"
+        )
+
+        ## get ncbi taxonomy for given date
+        names, nodes = getTaxonomy(args, args.ncbi_date)
+    
+    else:
+        vprint(
+            subprocessID,
+            f"Getting local NCBI-taxonomy files...",
+            "prYellow"
+        )
+
+        ## copy required files
+        names = f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp"
+        nodes = f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp"
+        merged = f"{args.autoDB_WDir}/ncbi_taxonomy/merged.dmp"
+        copyfile(f"{args.ncbi_tax_db}/names.dmp", names)
+        copyfile(f"{args.ncbi_tax_db}/nodes.dmp", nodes)
+        copyfile(f"{args.ncbi_tax_db}/merged.dmp", merged)
 
     chdir(args.autoDB_WDir)
 
     mkchdir(args.fasta_WDir)
 
-    fasta_dict = taxadd_Main(args.fasta_WDir, fasta_db_path, names, nodes)
+    fasta_dict, mapping_dict = taxadd_Main(args.fasta_WDir, fasta_db_path, names, nodes)
 
     chdir(args.autoDB_WDir)
 
-    return fasta_dict
+    return fasta_dict, mapping_dict
 
 
 def assemblyQC(args, fasta_dict, mapping_dict):
     """ Perform QC on assemblies using MASH then move high quality assemblies to the cleanFasta directory
     """
     from .assemblyQC import mash, buildMatrix, fastaMove
-    from .makeFastaDirJSON import make_fasta_dir_JSON
+    from .makeFastaDirJSON import makeFastaDirJSON
 
     subprocessID = "QC"
     vprint(
@@ -107,7 +132,7 @@ def assemblyQC(args, fasta_dict, mapping_dict):
     print(f"{len(input_fasta_list)} assemblies found in {args.fastaDir}")
 
     ## make the species name fasta file json
-    make_fasta_dir_JSON(args.fastaDir)
+    makeFastaDirJSON(str(args.fastaDir))
 
     for fasta in input_fasta_list:
         taxon_id = fasta.split("_")[0]
@@ -154,6 +179,8 @@ def assemblyQC(args, fasta_dict, mapping_dict):
 
 
 def makeK2db(args):
+    """ Creates the kraken2 database
+    """
 
     from ..utilities.runCommands import command
 
@@ -168,22 +195,16 @@ def makeK2db(args):
 
     mkchdir("taxonomy", 0)
 
-    # move(f"{args.autoDB_WDir}/ncbi_taxonomy/", "./")
-    # chdir("ncbi_taxonomy")
+    ## probably need to sort out this function to keep this an orchestrator only
+    for taxdump_file in ["names.dmp", "nodes.dmp", "merged.dmp"]:
+        source_taxdump = path.join(args.autoDB_WDir, "ncbi_taxonomy", taxdump_file)
+        if path.exists(source_taxdump):
+            copyfile(source_taxdump, path.join(args.kraken2_WDir, "taxonomy", taxdump_file))
 
     for fasta in listdir(args.cleanFasta_WDir):
         fasta_path = path.join(args.cleanFasta_WDir, fasta)
         k2build_line = f"kraken2-build --add-to-library {fasta_path} --db ."
         stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm_quiet(1, args.stdout, args.stderr)
-
-    k2build_line = "kraken2-build --skip-maps --db . --download-taxonomy"
-    stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
-
-    ## move new ncbi taxonomy database taxdump files to the kraken2 taxonomy directory
-    rename("./taxonomy/names.dmp", f"./taxonomy/names.dmp.old")
-    rename("./taxonomy/nodes.dmp", f"./taxonomy/nodes.dmp.old")
-    move(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp", "./taxonomy")
-    move(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp", "./taxonomy")
 
     ## build and inspect the kraken2 database
     k2build_line = f"kraken2-build --build --threads {args.threads} --db ."
@@ -191,12 +212,6 @@ def makeK2db(args):
 
     k2build_line = f"kraken2-inspect --db . > database.txt"
     stdout, stderr = command(k2build_line, "KRAKEN2-BUILD").run_comm(1, args.stdout, args.stderr)
-
-    ## move new nodes and names dump files to ncbi tax dir and remove the olds ones
-    move(f"{args.kraken2_WDir}/taxonomy/names.dmp", f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp")
-    move(f"{args.kraken2_WDir}/taxonomy/nodes.dmp", f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp")
-    remove(f"{args.autoDB_WDir}/ncbi_taxonomy/names.dmp.backup")
-    remove(f"{args.autoDB_WDir}/ncbi_taxonomy/nodes.dmp.backup")
 
     ## remove large unnecessary directories
     rmtree(f"{args.kraken2_WDir}/library")
@@ -206,36 +221,30 @@ def makeK2db(args):
 
 
 def makeVariantIndex(args):
-    """ Generates a variant index of parent child distances
+    """ Generate the Mash Variant Index used by screen read deconvolution.
     """
-    from .makeVariantIndex import make_variant_index
-    from ..screen.report.parseK2report import readK2report
+    from .makeVariantIndex import makeVariantIndex
 
     subprocessID = "GEN-VARIANT-INDEX"
     vprint(
         subprocessID,
-        f"Calculating parent-child distances from quality controlled assemblies and generating a variant index...",
+        f"Calculating all-vs-all Mash distances and generating the Mash Variant Index...",
         "prYellow"
     )
 
     mkchdir(args.variant_index_WDir)
 
-    database_txt = f"{args.kraken2_WDir}/database.txt"
-
-    relationship_dict = defaultdict(str)
-
-    base_nodes, root_node = readK2report(database_txt)
-
-    make_variant_index(args, base_nodes)
+    makeVariantIndex(args)
 
     chdir(args.autoDB_WDir)
 
 
 def makeKronaChart(args):
+    """ Create the Krona chart
+    """
 
-    from ..utilities.runCommands import command
+    from ..utilities.krona import run_krona_from_kraken_report
 
-    ## TODO: Fix this module for custom taxonomy
     subprocessID = "KRONA"
     vprint(
         subprocessID,
@@ -245,10 +254,35 @@ def makeKronaChart(args):
 
     mkchdir(args.krona_WDir)
 
-    kronachart_line = f"ktImportTaxonomy -m 3 -t 5 {args.kraken2_WDir}/database.txt -o database.html"
-    stdout, stderr = command(kronachart_line, "KRONA").run_comm(1, args.stdout, args.stderr)
+    run_krona_from_kraken_report(
+        path.join(args.kraken2_WDir, "database.txt"),
+        path.join(args.krona_WDir, "database.html"),
+        stdout=args.stdout,
+        stderr=args.stderr,
+        subprocess_id=subprocessID,
+    )
 
     chdir(args.autoDB_WDir)
+
+
+def makeManifest(args):
+    """Create a spreadsheet manifest describing assembly fate in the database."""
+    from .manifest import write_autodatabase_manifest
+
+    subprocessID = "MANIFEST"
+    vprint(
+        subprocessID,
+        "Writing assembly manifest workbook...",
+        "prYellow"
+    )
+
+    manifest_path = write_autodatabase_manifest(args)
+
+    vprint(
+        subprocessID,
+        f"Assembly manifest written to {manifest_path}",
+        "prGreen"
+    )
 
 
 def cleanOutdir(args):
@@ -277,7 +311,6 @@ def cleanOutdir(args):
         clean(args)
         rm_dir(args.fasta_WDir)
         rm_dir(f"{args.autoDB_WDir}/ncbi_taxonomy/")
-        rm_dir(args.variant_index_WDir)
 
     if args.clean:
         clean(args)

@@ -1,11 +1,10 @@
 from sys import exit
-from importlib.metadata import version
 from shutil import move, rmtree
-from os import chdir, path, listdir, mkdir, remove
-from collections import defaultdict
+from os import chdir, path, mkdir, remove
 
 from Afanc.utilities.runCommands import command
 from Afanc.utilities.generalUtils import vprint
+from Afanc.screen.report.final_report import makeFinalReport
 
 
 def runScreen(args):
@@ -21,6 +20,7 @@ def runScreen(args):
 
     ## screen with kraken2
     out_json = runFPScreen(args)
+    makeKronaChart(args)
 
     ## if no_map is True then exit Afanc screen
     if args.no_map:
@@ -29,20 +29,17 @@ def runScreen(args):
         return 0
 
     ## parse kraken2 report to a json
-    hits_json, variant_species = getHits(args, out_json)
+    hits_json = getHits(args, out_json)
 
     ## map to my genomes
-    variant_bams, reports = map2Hits(args, variant_species)
+    reports, mapped_bams = map2Hits(args)
 
-    ## check to see if variant files were provided
-    if args.variant_profile != False:
-        ## perform variant profiling
-        variant_profile = profileVariants(args, variant_bams)
-    else:
-        variant_profile = None
+    ## call SNPs from the competitive per-reference BAMs before lineage classification
+    snp_profile = profileSNPs(args, mapped_bams)
+    lineage_profile = profileLineages(args, snp_profile, mapped_bams)
 
     ## generate the final report
-    final_report = makeFinalReport(args, variant_profile, reports)
+    final_report = makeFinalReport(args, reports, snp_profile, lineage_profile)
 
     if args.clean or args.superclean:
         final_report = cleanOutdir(args, final_report)
@@ -67,6 +64,8 @@ def runFPScreen(args):
         "prYellow",
     )
 
+    fq_string = ' '.join(str(x) for x in args.fastq)
+    print(args.fastq)
     runline = f"kraken2 \
      --db {args.k2_database} \
      --minimum-base-quality 15 \
@@ -74,7 +73,7 @@ def runFPScreen(args):
      --threads {args.threads} \
      --output {args.output_prefix}.k2.txt \
      --report {args.output_prefix}.k2.report.txt \
-     --paired {' '.join(args.fastq)}"
+     --paired {fq_string}"
 
     command(runline, "KRAKEN").run_comm(0, args.stdout, args.stderr)
 
@@ -102,34 +101,30 @@ def runFPScreen(args):
 def getHits(args, out_json):
     """ parses the kraken2 report and then gets assemblies pertaining to identified species
     """
-    from .getGenomes import getAccessions, getGenomesbyAcc, getGenomesbyName, getLocalGenomes, get_hitIDs
+    from .getGenomes import getLocalGenomes
 
     subprocessID="GET_HITS"
 
-    chdir(args.bt2WDir)
+    chdir(args.mappingWDir)
 
     vprint(
         subprocessID,
         "Getting assemblies from local autodatabase directory...",
         "prYellow",
     )
-    variant_species = getLocalGenomes(out_json, args)
+    getLocalGenomes(out_json, args)
 
     chdir(args.runWDir)
 
-    return out_json, variant_species
+    return out_json
 
 
-def map2Hits(args, variant_species):
+def map2Hits(args):
     """ takes the hits from the kraken2 module
     """
-    import gzip
-    import json
-    from numpy import sum
+    from .mapHits import make_accessions_dict, gen_index, run_map
 
-    from .mapHits import make_accessions_dict, modify_fastas, gen_index, run_map
-
-    subprocessID="MAP2HITS"
+    subprocessID="MAPPING"
 
     vprint(
         subprocessID,
@@ -138,212 +133,126 @@ def map2Hits(args, variant_species):
     )
 
     ## index genomes
-    chdir(args.bt2WDir)
+    chdir(args.mappingWDir)
     mkdir("Hits")
 
-    accessions = {}
-    variant_sams = {}
+    assemblies_for_mapping = make_accessions_dict(args)
 
-    assemblies_for_mapping = make_accessions_dict(args, variant_species)
+    ## RUN COMPETITIVE BWA MAPPING
+    combined_reference = gen_index(args, assemblies_for_mapping)
 
-    modify_fastas(assemblies_for_mapping)
-
-    ## RUN BOWTIE2
-
-    bt2_index = gen_index(args, assemblies_for_mapping)
-
-    variant_bams, reports = run_map(args, bt2_index, assemblies_for_mapping)
+    reports, mapped_bams = run_map(args, combined_reference, assemblies_for_mapping)
 
     chdir(args.runWDir)
 
-    return variant_bams, reports
+    return reports, mapped_bams
 
 
-def profileVariants(args, variant_bams):
-    """ Take a set of variant profiles stored in BED format, and screen the fastqs for polymorphisms within the BED file.
+def profileSNPs(args, mapped_bams):
+    """Call SNPs from per-reference competitive mapping BAMs."""
+    from .variant_calling.profile import run_snp_profiling
 
-    The variants BED file must be structured as a tab seperated file with fields:
-
-            {chr}   {start}    {end}    {variantID}    {variant_sequence}    {variant_description}
-    e.g      chr1    100000     100001   strain1        A                     European
-    """
-
-    from .variant_profiler.profile import variantProfilerMain
-
-    subprocessID="VARIANT-PROFILER"
+    subprocessID="SNP-PROFILER"
 
     vprint(
         subprocessID,
-        "Running variant profiling...",
+        f"Running SNP profiling with {args.variant_caller}...",
         "prYellow",
     )
 
     chdir(args.profilerWDir)
 
-    variant_profile = variantProfilerMain(args, variant_bams)
+    snp_profile = run_snp_profiling(args, mapped_bams)
 
     chdir(args.runWDir)
 
-    return variant_profile
+    return snp_profile
 
 
-def makeFinalReport(args, variant_profile, reports):
-    """ make final report from the kraken2 and bowtie2 reports
-    """
+def profileLineages(args, snp_profile, mapped_bams):
+    """Classify lineage profiles where database profile models are available."""
+    from Afanc.classifier.bayesian_profile import run_lineage_classification
 
-    import json
-    from os import listdir
+    if args.no_lineage_classify:
+        return {
+            accession: {
+                "accession": accession,
+                "status": "not_run",
+                "reason": "disabled_by_no_lineage_classify",
+                "snp_json": snp_record.get("snp_json"),
+            }
+            for accession, snp_record in snp_profile.items()
+        }
+    if len(mapped_bams) > 1 and not args.lineage_profile_compound:
+        vprint(
+            "LINEAGE-PROFILER",
+            "Multiple mapped taxa detected; skipping lineage classification unless --lineage-profile-compound is set.",
+            "prYellow",
+        )
+        return {
+            accession: {
+                "accession": accession,
+                "status": "not_run",
+                "reason": "mixed_taxa_requires_lineage_profile_compound",
+                "snp_json": snp_record.get("snp_json"),
+            }
+            for accession, snp_record in snp_profile.items()
+        }
 
-    from Afanc.utilities.getVersions import getVersionsScreen
+    subprocessID="LINEAGE-PROFILER"
 
-    subprocessID = "REPORT"
     vprint(
         subprocessID,
-        f"Generating final report...",
-        "prYellow"
+        "Running Bayesian lineage classification for profiled taxa...",
+        "prYellow",
     )
 
-    jsondict = defaultdict(dict)
+    lineage_profile = run_lineage_classification(args, snp_profile, mapped_bams)
 
-    datadict = jsondict["results"] = {}
+    return lineage_profile
 
-    ## initialise dictionary key
-    if "Detection_events" not in datadict:
-        datadict["Detection_events"] = { "Clustering_results" : [] }
 
-    ## if a variant profile exists then include it in the final report
-    if variant_profile != None:
-        datadict["Detection_events"]["Variant_profile"] = variant_profile
+def makeKronaChart(args):
+    """Generate a Krona chart from the filtered Kraken-like screen report."""
+    from Afanc.utilities.krona import run_krona_from_kraken_report
 
-    ## collect arguments
-    jsondict["arguments"] = {
-        "database" : args.database,
-        "fastqs" : args.fastq,
-        "num_threshold" : args.num_threshold,
-        "pct_threshold" : args.pct_threshold,
-        "upper_bound_threshold" : args.upper_bound,
-        "lower_bound_thresold" : args.lower_bound,
-        "mapping_sensitivity" : args.mapping_sensitivity,
-        "output_prefix" : args.output_prefix,
-    }
+    subprocessID = "KRONA"
+    vprint(
+        subprocessID,
+        "Making screen Krona chart...",
+        "prYellow",
+    )
 
-    ## collect versions
-    jsondict["versions"] = {
-        "screen" : getVersionsScreen()
-    }
+    filtered_report = path.join(args.k2WDir, f"{args.output_prefix}.filtered.k2.report.txt")
+    raw_report = path.join(args.k2WDir, f"{args.output_prefix}.k2.report.txt")
+    krona_input = filtered_report if path.exists(filtered_report) else raw_report
+    output_html = path.join(args.kronaWDir, f"{args.output_prefix}.krona.html")
 
-    ## collect k2 json reports
-    bt2_reportsbox = [g for g in listdir(args.reportsDir) if g.endswith("mapstats.json")]
+    run_krona_from_kraken_report(
+        krona_input,
+        output_html,
+        stdout=args.stdout,
+        stderr=args.stderr,
+        subprocess_id=subprocessID,
+    )
 
-    ## read general report
-    with open(f"{args.reportsDir}/{args.output_prefix}.k2.json", 'r') as k2fin:
-        k2data = json.load(k2fin)
-
-        for event in k2data["Detection_events"]:
-
-            ## initialise warnings
-            event["warnings"] = []
-
-            ## handle instances where an assembly cannot be found or no_map mode was used
-            if "assembly" in event:
-
-                ## block to deal with most likely variants
-                if "closest_variant" in event:
-                    variant_flag = True
-                    taxon_id = str(event["closest_variant"]["taxon_id"])
-
-                    ## in instances where this hit was subjected to variant profiling, the assembly used for mapping will
-                    ## belong to the species rather than the closest variant
-                    if "assembly" in event["closest_variant"]:
-                        assembly = event["closest_variant"]["assembly"]
-                    else:
-                        assembly = event["assembly"]
-                
-                ## no variants
-                else:
-                    variant_flag = False
-                    assembly = event["assembly"]
-                    taxon_id = str(event["taxon_id"])
-
-            ## block to deal with instances where there is no assembly
-            ## this is to ensure that a final json is constructed when no_map mode is used   
-            else:
-                ## block to deal with most likely variants
-                if "closest_variant" in event:
-                    variant_flag = True
-                    assembly = None
-                    taxon_id = str(event["closest_variant"]["taxon_id"])
-
-                ## no variants
-                else:
-                    variant_flag = False
-                    assembly = None
-                    taxon_id = str(event["taxon_id"])
-
-            ## block dealing with hits which have an accompanying assembly which reads were mapped to
-            if not assembly == None:
-                assembly_prefix = path.basename(path.splitext(assembly)[0])
-                if assembly_prefix.endswith("_genomic"):
-                    assembly_prefix = assembly_prefix.strip("_genomic")
-
-                ## find Bowtie2 report
-                ## NOTE: there should only ever be 1 element in this list, since taxon_id should be unique to each taxon
-                report_json = [report for report in bt2_reportsbox if report.endswith(assembly_prefix + ".mapstats.json")][0]
-
-                ## read Bowtie2 report
-                with open(f"{args.reportsDir}/{report_json}", 'r') as bt2fin:
-                    bt2data = json.load(bt2fin)
-
-                    ## check the that the no_unique_map warning doesnt exist
-                    if "no_unique_map" not in bt2data["warnings"]:
-
-                        ## add fields to json dict
-                        ## if there is a likely variant, add to that subdict
-                        if variant_flag:
-                            event["closest_variant"]["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                            event["closest_variant"]["median_DOC"] = bt2data["map_data"]["median_DOC"]
-                            event["closest_variant"]["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                            event["closest_variant"]["gini"] = bt2data["map_data"]["gini"]
-
-                        ## otherwise add to the base dict
-                        else:
-                            event["mean_DOC"] = bt2data["map_data"]["mean_DOC"]
-                            event["median_DOC"] = bt2data["map_data"]["median_DOC"]
-                            event["reference_cov"] = bt2data["map_data"]["proportion_cov"]
-                            event["gini"] = bt2data["map_data"]["gini"]
-
-                    ## if it does, append it to the final report warnings
-                    else:
-                        event["warnings"].append(bt2data["warnings"])
-
-            ## block dealing with hits which do not have an accompanying assembly
-            else:
-                event['warnings'].append(f"No assembly could be found for hit on {event['name']}.")
-
-            datadict["Detection_events"]["Clustering_results"].append(event)
-
-            final_report = path.abspath(f"./{args.output_prefix}.json")
-
-    with open(final_report, "w") as fout:
-        json.dump(jsondict, fout, indent = 4)
-
-    return final_report
+    chdir(args.runWDir)
 
 
 def cleanOutdir(args, final_report):
     """ Cleans the output directory according to provided arguments.
 
-    clean : remove the bt2 working directory.
+    clean : remove the mapping working directory.
     superclean : move the results JSON to ./ and remove the entire output directory
     """
 
     if args.clean:
-        ## check the bt2WDir exists
-        if path.isdir(args.bt2WDir):
-            rmtree(args.bt2WDir, ignore_errors=True)
+        ## check the mappingWDir exists
+        if path.isdir(args.mappingWDir):
+            rmtree(args.mappingWDir, ignore_errors=True)
         else:
             ## If it fails, inform the user.
-            print(f"Error: Could not remove {args.bt2WDir}, directory not found.")
+            print(f"Error: Could not remove {args.mappingWDir}, directory not found.")
 
         if path.isfile(f"{args.k2WDir}/{args.output_prefix}.k2.txt"):
             remove(f"{args.k2WDir}/{args.output_prefix}.k2.txt")
@@ -365,6 +274,9 @@ def cleanOutdir(args, final_report):
         if path.isdir(args.runWDir):
             new_final_report_path = path.join(args.baseRunDir, final_report.split("/")[-1])
             move(final_report, new_final_report_path)
+            krona_report = path.join(args.kronaWDir, f"{args.output_prefix}.krona.html")
+            if path.isfile(krona_report):
+                move(krona_report, path.join(args.baseRunDir, path.basename(krona_report)))
             rmtree(args.runWDir, ignore_errors=True)
         else:
             ## If it fails, inform the user.
