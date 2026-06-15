@@ -1,8 +1,8 @@
-# Afanc: High Resolution Metagenomic Deconvolution
-
 <p align="center">
-  <img src="resources/logo.png" alt="Afanc logo" width="120">
+  <img src="resources/logo.png" alt="Afanc logo" width="220">
 </p>
+
+# Taxonomic Deconvolution and Probabilistic Lineage Classification
 
 | | |
 | --- | --- |
