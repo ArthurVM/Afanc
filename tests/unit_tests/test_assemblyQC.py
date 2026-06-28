@@ -49,8 +49,8 @@ def test_mash_command_execution(mock_command_class, mock_args, tmp_path, monkeyp
     mock_cmd_instance.run_comm_quiet.assert_any_call(0, mock_args.stdout, mock_args.stderr)
 
 
-@patch("Afanc.autodatabase.assemblyQC.move") # Patch shutil.move where it's used in assemblyQC
-@patch("Afanc.autodatabase.assemblyQC.np.savetxt") # Still called to save _mash.txt
+@patch("Afanc.autodatabase.assemblyQC.move")
+@patch("Afanc.autodatabase.assemblyQC.np.savetxt")
 def test_buildMatrix_fewer_than_3_assemblies(mock_numpy_savetxt, mock_shutil_move, mock_args, tmp_path, monkeypatch):
     """Test buildMatrix when there are fewer than 3 assemblies."""
     monkeypatch.chdir(tmp_path)
@@ -115,13 +115,13 @@ def test_buildMatrix_sufficient_assemblies(mock_numpy_savetxt, mock_args, tmp_pa
 
     mash_output_content = (
         f"{fasta1_path}\t{fasta1_path}\t0.0\t0\t1000/1000\n"
-        f"{fasta1_path}\t{fasta2_path}\t0.1\t0\t900/1000\n"  # asmA vs asmB
-        f"{fasta1_path}\t{fasta3_path}\t0.2\t0\t800/1000\n"  # asmA vs asmC
-        f"{fasta2_path}\t{fasta1_path}\t0.1\t0\t900/1000\n"  # asmB vs asmA
+        f"{fasta1_path}\t{fasta2_path}\t0.1\t0\t900/1000\n"
+        f"{fasta1_path}\t{fasta3_path}\t0.2\t0\t800/1000\n"
+        f"{fasta2_path}\t{fasta1_path}\t0.1\t0\t900/1000\n"
         f"{fasta2_path}\t{fasta2_path}\t0.0\t0\t1000/1000\n"
-        f"{fasta2_path}\t{fasta3_path}\t0.05\t0\t950/1000\n" # asmB vs asmC
-        f"{fasta3_path}\t{fasta1_path}\t0.2\t0\t800/1000\n"  # asmC vs asmA
-        f"{fasta3_path}\t{fasta2_path}\t0.05\t0\t950/1000\n" # asmC vs asmB
+        f"{fasta2_path}\t{fasta3_path}\t0.05\t0\t950/1000\n"
+        f"{fasta3_path}\t{fasta1_path}\t0.2\t0\t800/1000\n"
+        f"{fasta3_path}\t{fasta2_path}\t0.05\t0\t950/1000\n"
         f"{fasta3_path}\t{fasta3_path}\t0.0\t0\t1000/1000\n"
     )
     inMash_path = tmp_path / "456_mashdist.txt"
