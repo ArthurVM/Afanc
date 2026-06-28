@@ -41,10 +41,10 @@ def test_isDir_not_exists(tmp_path):
     [
         ("2022-05-01", True),
         ("2023-05-31", True),
-        ("202-05-01", False),  ## invalid year
-        ("2022-06-01", False), ## invalid month (must be 05)
-        ("2022-05-1", False),  ## invalid day format
-        ("2022/05/01", False), ## invalid separator
+        ("202-05-01", False),
+        ("2022-06-01", False),
+        ("2022-05-1", False),
+        ("2022/05/01", False),
         ("invalid-date", False),
     ],
 )
