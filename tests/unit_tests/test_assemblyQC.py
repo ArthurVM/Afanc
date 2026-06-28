@@ -11,8 +11,8 @@ def mock_args():
     """Fixture to create mock arguments."""
     args = MagicMock()
     args.threads = 4
-    args.stdout = MagicMock() # Mock stdout file object
-    args.stderr = MagicMock() # Mock stderr file object
+    args.stdout = MagicMock()
+    args.stderr = MagicMock()
     args.fasta_WDir = "/fake/fasta_WDir"
     args.cleanFasta_WDir = "/fake/cleanFasta_WDir"
     return args
@@ -27,7 +27,6 @@ def test_mash_command_execution(mock_command_class, mock_args, tmp_path, monkeyp
     taxon_id = "12345"
     fastas = [str(tmp_path / "f1.fasta"), str(tmp_path / "f2.fasta")]
     
-    # Create dummy fasta files if their content or existence is checked by mash sketch
     for f_path in fastas:
         Path(f_path).touch()
 
@@ -70,8 +69,6 @@ def test_buildMatrix_fewer_than_3_assemblies(mock_numpy_savetxt, mock_shutil_mov
     inMash_path = tmp_path / "123_mashdist.txt"
     inMash_path.write_text(mash_output_content)
 
-    # The function writes output files to the current working directory.
-    # For cleanup, we'll track these files.
     expected_warning_file_path = tmp_path / "123_warning.txt"
     expected_mash_list_path = tmp_path / "123_mash.txt"
 
