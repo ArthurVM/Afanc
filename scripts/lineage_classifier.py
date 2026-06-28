@@ -94,8 +94,7 @@ def validate_vcf_qc(
             f"VCF QC validation failed for {vcf_path}: missing required FORMAT fields {sorted(missing_formats)}."
         )
 
-    ## for strict filtered VCFs, check that the expected bcftools filter provenance
-    ## is still present in the header command lines
+    ## check that the expected bcftools filter stuff is still present in the header
     if require_filtered_vcf:
         if "bcftools_viewcommand" not in header_lower or "bcftools_normcommand" not in header_lower:
             raise ValueError(
@@ -142,8 +141,7 @@ def write_model_targets_bed(model: ModelInput, output_bed: Union[str, Path]) -> 
     output_path = Path(output_bed)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ## Hierarchical models can reuse the same genomic target at multiple nodes,
-    ## so deduplicate intervals before writing the targeting BED.
+    ## deduplicate intervals before writing the targeting bed
     with output_path.open("w") as handle:
         for locus in _iter_unique_bed_loci(model_dict):
             handle.write(
@@ -176,8 +174,8 @@ def parse_vcf_for_classification(
     with pysam.VariantFile(str(vcf_path)) as vcf:
         resolved_sample = _resolve_sample_name(vcf, sample_name)
 
-        ## capture only loci which appear in the model and leave everything else as
-        ## missing evidence
+        ## capture only loci which appear in the model
+        ## everything else missing
         for record in vcf:
             if not record.alts:
                 continue
@@ -470,7 +468,7 @@ def _build_model_locus_lookup(model: Mapping[str, Any]) -> Dict[str, Dict[Tuple[
 def _initialise_evidence(model: Mapping[str, Any], missing_reason: str) -> Dict[str, VariantEvidence]:
     evidence = {}
     for locus in model["loci"]:
-        ## initialise every model locus as absent from the current input and
+        ## initialise every model locus as absent from the current input
         ## overwrite only when a matching record is observed
         evidence[locus["locus_id"]] = VariantEvidence(
             locus_id=locus["locus_id"],
@@ -551,8 +549,7 @@ def _record_to_evidence(
     if require_pass and filter_keys and filter_keys != ("PASS",):
         excluded_reasons.append("filter_not_pass")
 
-    ## the classifier expects depth-aware evidence so loci missing DP/AD are
-    ## treated as observed but unusable
+    ## classifier expects depth aware evidence so loci missing DP/AD are treated as observed but unusable
     usable = not excluded_reasons and depth is not None and alt_depth is not None
 
     return VariantEvidence(
@@ -715,7 +712,8 @@ def _extract_allele_depths(sample_data: Any, alt_index: int) -> Tuple[Optional[i
     if sample_data is None:
         return None, None
 
-    ## prefer AD where available, but accept freebayes-style RO/AO fields too
+    ## prefer AD where available
+    ## accept freebayes style RO/AO fields too
     ad = sample_data.get("AD")
     if ad is None or len(ad) <= alt_index + 1:
         ro = sample_data.get("RO")
@@ -800,8 +798,8 @@ def _require_any_header_substring(
 
 
 def _lineage_scope_field(lineage_scope: str) -> str:
-    ## lineage membership is driven from the model hierarchy rather than inferred
-    ## from lineage name prefixes at classification time
+    ## lineage membership is driven from the model hierarchy rather than inferred from lineage name prefixes at classification time
+    ## TODO: this has caused issues in the past
     if lineage_scope == "direct":
         return "direct_locus_ids"
     if lineage_scope == "inherited":
@@ -1485,7 +1483,7 @@ def _locus_log_likelihood(
         )
 
     if mode == "full_bayes":
-        ## use pre-fit beta-binomial parameters stored in the model
+        ## use prefit BB parameters stored in the model
         alpha, beta = _resolve_full_bayes_beta_params(locus, model, is_active_for_lineage)
         log_likelihood = _log_beta_binomial_pmf(evidence.alt_depth, evidence.depth, alpha, beta)
         return log_likelihood * _kappa_weight_for_locus(
