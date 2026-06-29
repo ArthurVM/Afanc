@@ -3,13 +3,15 @@
 </p>
 
 # Taxonomic Deconvolution and Probabilistic Lineage Classification
+[![Unit tests](https://github.com/ArthurVM/Afanc/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/ArthurVM/Afanc/actions/workflows/unit-tests.yml)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 
 | | |
 | --- | --- |
 | Author  | Arthur Morris ([ArthurVM](https://github.com/ArthurVM/)) |
 |         | Anna Price ([annacprice](https://github.com/annacprice/)) |
 | Email   | <arthurvmorris@gmail.com> |
-| License | [GNU GPL v3.0](https://opensource.org/license/gpl-3-0/) |
+| License | [![License: GPL-3.0](https://img.shields.io/github/license/ArthurVM/Afanc)](LICENSE) |
 
 ## Description
 Afanc is a framework for taxonomic deconvolution and probabilistic lineage assignment from pathogen NGS data. It is intended for analyses in which broad read-level classification must be reconciled with high-resolution species, subspecies, clade, or lineage assignment. Afanc combines reference database curation, Kraken2 report deconvolution, competitive read mapping, variant calling, and SNP-based Bayesian classification within a single workflow. It can also apply the same lineage models directly to precomputed VCf evidence when those data were generated against a supported reference profile.
