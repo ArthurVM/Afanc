@@ -21,7 +21,6 @@ def build_freebayes_regions_command(
     reference_fasta = Path(reference_fasta)
     output_regions = Path(output_regions)
 
-    ## chunk the reference from the fasta index so freebayes-parallel can split work deterministically across regions
     return (
         f"{shlex.quote(fasta_generate_regions_executable)} "
         f"{shlex.quote(str(reference_fasta) + '.fai')} "
@@ -49,7 +48,7 @@ def build_freebayes_call_command(
     regions_file = Path(regions_file)
     output_vcf = Path(output_vcf)
 
-    ## use the permissive freebayes callset as the raw evidence source for downstream classification
+    ## retain permissive calls as classification evidence
     return (
         f"{shlex.quote(freebayes_parallel_executable)} "
         f"{shlex.quote(str(regions_file))} {int(cpus)} "
@@ -89,7 +88,7 @@ def build_freebayes_filter_command(
         f"(FMT/AO)/(FMT/DP)>={min_alt_fraction}"
     )
 
-    ## produce a strict final VCF for reporting while keeping the raw VCF around for evidence extraction if needed
+    ## retain the raw VCF for evidence extraction
     return (
         f"{shlex.quote(bcftools_executable)} view --include {shlex.quote(include_expr)} "
         f"{shlex.quote(str(raw_vcf))} "
@@ -233,7 +232,7 @@ def run_bcftools_variant_caller(
         bcftools_executable=bcftools_executable,
     )
 
-    ## keep the bcftools path available for compatibility and benchmarking
+    ## alternate caller for compatibility and benchmarking
     command(
         f"{mpileup_command} | {call_command}",
         "VARCALL",

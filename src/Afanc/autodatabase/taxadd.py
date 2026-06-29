@@ -33,7 +33,6 @@ def editFasta(infasta, outdir, taxid, taxname):
 
     fasta_fout = open(fasta_file, "w")
 
-    ## edit the headers in each fasta file then output with the taxID
     for rec in SeqIO.parse(fasta_fin, "fasta"):
         header = f">{rec.id}|kraken:taxid|{taxid} {taxname}\n"
         fasta_fout.write(header)
@@ -50,7 +49,6 @@ def addTaxon(taxname, mother_clade_taxid, names_df, nodes_df, name_index=None, t
     to the database.
     """
 
-    ## max_taxid increased by 1
     if taxadd_state is not None:
         taxid = taxadd_state["next_taxid"]
         taxadd_state["next_taxid"] += 1
@@ -59,7 +57,7 @@ def addTaxon(taxname, mother_clade_taxid, names_df, nodes_df, name_index=None, t
         max_taxid = max(names_df[0])
         taxid = int(max_taxid + 1)
 
-    ## hacky way of dealing with this, but anything above species level should not be getting introduced into the tax db anyway
+    ## infer rank from binomial or trinomial name
     if taxname.count(" ")>1:
         rank = "subspecies"
     elif taxname.count(" ")==1:
@@ -91,8 +89,7 @@ def buildNameIndex(names_df):
         if normalised_taxname == "":
             continue
 
-        ## keep the first occurrence to preserve the previous exact-match
-        ## behaviour where aliases and scientific names shared the same column.
+        ## keep the first taxid for duplicate names
         if normalised_taxname not in name_index:
             name_index[normalised_taxname] = str(taxid)
 
@@ -191,14 +188,10 @@ def searchTaxon(taxname, names_df, name_index=None):
     if name_index is not None:
         return name_index.get(taxname)
 
-    ## find row with species name
     taxon_row = names_df[names_df[1] == taxname]
 
-    ## return None if taxon cannot be found
     if taxon_row.empty:
-        # print(f"{taxname} taxon not found!", end=" ")
         return None
-    ## return the ncbi taxon ID number of it can be found
     else:
         return str(taxon_row.iloc[0, 0])
 
@@ -207,7 +200,6 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df, name_index=None, ta
     """ Get ncbi taxonomy ID for this taxon
     """
 
-    ## normalise directory-derived names before querying NCBI taxonomy
     taxname = normaliseTaxonName(taxname)
 
     taxid = searchTaxon(taxname, names_df, name_index=name_index)
@@ -221,9 +213,7 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df, name_index=None, ta
                 f" ({scientific_name}) using an authority/synonym name."
             )
 
-    ## block for dealing with taxon missing from the ncbi taxonomy database
     if taxid == None:
-
         # print(f"Cannot find {taxname} in ncbi taxonomy database.")
 
         ###  TAXADD BLOCK  ###
@@ -231,22 +221,18 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df, name_index=None, ta
 
         ## check to see if a mother clade is given
         if mother_clade != None and mother_clade.strip(" ") != "":
-            ## find taxid for the mother clade
             mother_clade_unformatted = normaliseTaxonName(mother_clade)
             print(f"Attempting to find {mother_clade_unformatted} in ncbi taxonomy database...", end=" ")
             mother_taxid = searchTaxon(mother_clade_unformatted, names_df, name_index=name_index)
 
-            ## if no taxon exists for the mother clade, find taxid for the genus
             if mother_taxid == None:
                 genus = normaliseTaxonName(mother_clade).split(" ")[0]
                 print(f"Attempting to find {genus} in ncbi taxonomy database...")
                 genus_taxid = searchTaxon(genus, names_df, name_index=name_index)
 
-                ## if the genus does not exist within the ncbi taxonomy database, then call a fail
                 if genus_taxid == None:
                     print(f"{genus} taxon not found! Failed to add to ncbi taxonomy database...")
 
-                ## else if the genus does exist within the database, add both the mother and daughter taxa
                 else:
                     # print(f"Found {genus_taxid}.", end="\n")
                     mother_taxid, names_df, nodes_df = addTaxon(mother_clade_unformatted, genus_taxid, names_df, nodes_df, name_index=name_index, taxadd_state=taxadd_state)
@@ -256,19 +242,15 @@ def getTaxidNames(taxname, mother_clade, names_df, nodes_df, name_index=None, ta
                 # print(f"Found {mother_taxid}.", end="\n")
                 taxid, names_df, nodes_df = addTaxon(taxname, mother_taxid, names_df, nodes_df, name_index=name_index, taxadd_state=taxadd_state)
 
-        ## if no mother clade is given, try to find the genus in the taxonomy database
         else:
             genus = taxname.split(" ")[0]
             # print(f"Attempting to find genus {genus} in ncbi taxonomy database...", end=" ")
             genus_taxid = searchTaxon(genus, names_df, name_index=name_index)
 
-            ## if the genus does not exist within the ncbi taxonomy database, then call a fail
             if genus_taxid == None:
                 print(f"{genus} taxon not found! Failed to add to ncbi taxonomy database...")
 
-            ## else if the genus does exist within the database, add both the mother and daughter taxa
             else:
-                # print(f"Found {genus_taxid}.", end="\n")
                 taxid, names_df, nodes_df = addTaxon(taxname, genus_taxid, names_df, nodes_df, name_index=name_index, taxadd_state=taxadd_state)
 
 
@@ -298,8 +280,7 @@ def readDmp(dmp_file):
     """ Read in nodes/names dmp files and return as a pandas dataframe
     """
 
-    ## read dmp into dataframe.  Force string parsing first so all NCBI field
-    ## padding is removed before any taxonomy file is rewritten.
+    ## strip NCBI field padding before rewriting
     dmp_df = pd.read_csv(dmp_file, header=None, sep="|", dtype=str, keep_default_na=False)
 
     dmp_df = dmp_df.apply(lambda col: col.map(lambda value: value.strip() if isinstance(value, str) else value))
@@ -346,11 +327,8 @@ def taxadd_Main(fasta_WDir, fasta_db_path, names_path, nodes_path):
             infasta = path.join(dir, fasta)
             fasta_dict[taxname].append(infasta)
 
-            # get the taxonomic ID
             taxid, names_df, nodes_df = getTaxidNames(taxname, mother_clade, names_df, nodes_df, name_index=name_index, taxadd_state=taxadd_state)
 
-            ## errorStrategy : Ignore equivilent
-            ## TODO: add taxa to names and nodes
             if taxid == None:
                 continue
 
@@ -361,11 +339,9 @@ def taxadd_Main(fasta_WDir, fasta_db_path, names_path, nodes_path):
     dirpath = path.dirname(names_path)
 
     if taxadd_state["taxonomy_changed"]:
-        ## rename the old names.dmp file
         rename(names_path, f"{dirpath}/names.dmp.backup")
         rename(nodes_path, f"{dirpath}/nodes.dmp.backup")
 
-        ## write the new nodes.dmp file
         writeDmp(names_df, nodes_df, dirpath)
 
     return fasta_dict, mapping_dict

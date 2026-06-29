@@ -1,5 +1,5 @@
 """
-Afanc high-resolution Metagenomics disambiguator.
+Afanc high-resolution taxonomic classifier.
 """
 import sys
 import argparse

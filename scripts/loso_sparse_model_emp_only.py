@@ -53,8 +53,9 @@ def _decode_dotted_allele_with_ardal(allele_id):
 def parse_ardal_allele(allele_id):
     allele_id = str(allele_id)
 
-    ## Prefer Ardal-backed decoding for dotted IDs so contig / position parsing
-    ## stays consistent with the allele headers used elsewhere in the stack.
+    ## prefer Ardal backed decoding for dotted IDs so contig / position parsing
+    ## stays consistent with the allele headers used elsewhere in the stack
+    ## TODO: Ardal has shifted its intermediate files schema in to v3 so might need attention at some point
     dotted_match = re.match(r"^(?P<chrom>.+)\.(?P<pos>\d+)\.(?P<ref>[A-ZN]+)\.(?P<alt>[A-ZN]+)$", allele_id)
     if dotted_match:
         ardal_decoded = _decode_dotted_allele_with_ardal(allele_id)
@@ -157,8 +158,8 @@ def estimate_lineage_frequencies(sample_alleles, labels_by_sample, selected_alle
     for allele in selected_alleles:
         carriers = {sample_id for sample_id, aset in sample_alleles.items() if allele in aset}
 
-        ## Estimate one smoothed Bernoulli rate per lineage, then collapse all
-        ## non-target lineages into a shared background emission.
+        ## estimate one smoothed Bernoulli rate per lineage
+        ## collapse non target lineages into a shared background emission
         for lineage in lineages:
             lineage_samples = lineage_to_samples[lineage]
             n = len(lineage_samples)
@@ -182,8 +183,8 @@ def score_samples_sparse_tables(sample_alleles, selected_alleles, lineages, prio
         log_scores = {}
         for lineage in lineages:
             logp = math.log(_safe_prob(priors[lineage]))
-            ## The sparse model scores both observed and unobserved markers, so
-            ## lineages with many direct markers accumulate more negative evidence.
+            ## scores both observed and unobserved
+            ## works better
             for allele in selected_alleles:
                 target_lineage = max(lineage_freqs[allele], key=lineage_freqs[allele].get)
                 p = lineage_freqs[allele][lineage] if lineage == target_lineage else pooled_background[allele]
@@ -450,8 +451,7 @@ def _validate_parent_map(parent_map, leaf_labels):
     visited = set()
 
     def visit(node):
-        ## DFS cycle detection is simpler than trying to reason about malformed
-        ## nested structures after the fact.
+        ## dfs cycle detection to prevent malformed
         if node in visited:
             return
         if node in visiting:
@@ -515,16 +515,16 @@ def _iter_internal_nodes(parent_map, leaf_set):
 
 def _build_node_training_meta(meta, lineage_col, node, parent_map, children_by_parent, leaf_set):
     if node == HIERARCHY_ROOT_NODE:
-        ## The synthetic root classifier exists only when the tree has multiple
-        ## disconnected roots; it relabels leaves to their top-level branch.
+        ## synthetic root classifier exists only when the tree has multiple disconnected roots
+        ## relabels leaves to their top-level branch.
         descendant_leaves = sorted(leaf_set)
         node_meta = meta[meta[lineage_col].isin(descendant_leaves)].copy()
         node_meta["_node_lineage"] = node_meta[lineage_col].map(lambda leaf: _get_root_label(leaf, parent_map))
         node_children = sorted(node_meta["_node_lineage"].dropna().unique())
         return node_meta, descendant_leaves, node_children
 
-    ## Each local node model competes only among the node's direct children, even
-    ## though its training samples are drawn from all descendant leaves below it.
+    ## each local node model competes only among the nodes direct children
+    ## even though training samples from all descendants
     descendant_leaves = _get_descendant_leaves(node, children_by_parent, leaf_set)
     node_meta = meta[meta[lineage_col].isin(descendant_leaves)].copy()
     node_meta["_node_lineage"] = node_meta[lineage_col].map(
@@ -556,8 +556,7 @@ def fit_reporting_support_from_loso(
             evidence_metric=evidence_metric,
         )
 
-    ## Reporting support is fit only on held-out LOSO mistakes so the ambiguity
-    ## thresholds reflect empirical collision patterns rather than training fit.
+    ## fit ambiguity thresholds from held out loso errors
     incorrect_predictions = [record for record in prediction_records if record["top_class"] != record["true_class"]]
     base_by_bin = []
     for evidence_bin in normalised_bins:
@@ -891,8 +890,7 @@ def _build_candidate_pool(
                 meta["best_score"] = float(score)
                 meta["best_rank"] = rank
 
-    ## Interleave per-lineage rankings so one lineage cannot monopolise the
-    ## candidate pool before LOSO has a chance to evaluate balance explicitly.
+    ## interleave per lin rankings so one lin cannot monopolise the candidate pool before LOSO
     ordered_candidates = []
     seen = set()
     max_rank_depth = max((len(ranked) for ranked in lineage_rankings.values()), default=0)
@@ -995,8 +993,9 @@ def _supplement_lineage_markers(
     stable_set = set(stable)
     lineage_counts = Counter(consensus.get(allele) for allele in stable if consensus.get(allele) is not None)
 
-    ## This is a floor, not a cap: supported markers are added for underpowered
-    ## classes, but richer lineages are allowed to keep more than the minimum.
+    ## IMPORTANT: this is a floor rather than a hard threshold
+    ## supported markers are added for underpowered classes
+    ## richer lineages are allowed to keep more than the minimum
     for lineage in sorted(lineages):
         needed = max(0, min_lineage_alleles - lineage_counts.get(lineage, 0))
         if needed == 0:
@@ -1063,8 +1062,8 @@ def _build_flat_sparse_node_model(
     if meta.empty or meta[lineage_col].nunique() < 2:
         return None, []
 
-    ## LOSO folds are only valid when every held-out label is represented in the
-    ## corresponding training split; otherwise that fold cannot score all classes.
+    ## loso folds are only valid when every held out label is represented in the training split
+    ## otherwise that fold cannot score all classes
     folds = []
     for study in sorted(meta[study_col].unique()):
         test_ids = meta.loc[meta[study_col] == study, sample_col].tolist()
@@ -1139,8 +1138,7 @@ def _build_flat_sparse_node_model(
         selected = []
         prefix_results = []
 
-        ## Evaluate prefix panels in order so LOSO chooses the smallest strong
-        ## local model rather than taking the whole candidate pool by default.
+        ## evaluate prefix panels in order so loso chooses the smallest strong local model
         for allele in ordered_candidates:
             selected.append(allele)
 
@@ -1258,8 +1256,8 @@ def _build_flat_sparse_node_model(
     if not fold_results:
         return None, []
 
-    ## Stable alleles are the fold-winning markers that recur across enough LOSO
-    ## splits, then optionally topped up to satisfy the per-lineage minimum.
+    ## stable alleles are the fold winning markers that recur across enough loso splits
+    ## can be topped up to satisfy the per lin min
     min_support_count = max(1, math.ceil(min_fold_support * len(fold_results)))
     stable_alleles = [
         allele for allele, count in allele_support.items()
@@ -1373,8 +1371,7 @@ def build_geolineage_min_model_sparse(
     )
 
     if parent_map is None:
-        ## Preserve the original flat behavior unless an explicit hierarchy is
-        ## provided.
+        ## flat unless there is an explicit hierarchy
         final_model, fold_results = _build_flat_sparse_node_model(
             ard_obj=ard_obj,
             meta_df=meta_df,
@@ -1417,8 +1414,8 @@ def build_geolineage_min_model_sparse(
     children_by_parent = _build_children_by_parent(normalised_parent_map)
     roots = _find_roots(normalised_parent_map)
 
-    ## Train one local classifier per internal node; each node only competes
-    ## among its direct children.
+    ## train one local classifier per internal node
+    ## each node only competes among its direct children
     nodes_to_train = []
     if len(roots) > 1:
         nodes_to_train.append(HIERARCHY_ROOT_NODE)
@@ -1488,8 +1485,7 @@ def build_geolineage_min_model_sparse(
     serialised_roots = list(roots)
     top_classifier_node = None
     if len(roots) > 1:
-        ## Multiple roots need a synthetic top-level classifier so inference has
-        ## an explicit first decision point.
+        ## multiple roots need a synthetic top level classifier so inference has an explicit first decision point
         serialised_parent_map[HIERARCHY_ROOT_NODE] = None
         serialised_children[HIERARCHY_ROOT_NODE] = list(roots)
         for root in roots:

@@ -32,18 +32,15 @@ def prepare_reference(
     if not ref_fasta.is_file():
         raise FileNotFoundErrorAfanc(ref_fasta)
 
-    ## ensure the expected tools are available before doing any work
     _require_executable(bwa_executable)
     _require_executable(samtools_executable)
 
     fai_path = ref_fasta.with_suffix(ref_fasta.suffix + ".fai")
     bwa_index_paths = _bwa_index_paths(ref_fasta)
 
-    ## build the fasta index only if it is not already present
     if not fai_path.exists():
         command([samtools_executable, "faidx", str(ref_fasta)], "MAP").run_comm_quiet(0)
 
-    ## build the bwa index only if any of the expected files are missing
     if not all(index_path.exists() for index_path in bwa_index_paths.values()):
         command([bwa_executable, "index", str(ref_fasta)], "MAP").run_comm_quiet(0)
 
@@ -78,8 +75,6 @@ def build_mapping_pipeline_command(
     sort_threads = sort_threads if sort_threads is not None else cpus
     read_group = build_read_group(sample_name)
 
-    ## build the full mapping pipeline as a single shell command so all
-    ## intermediate data stays in pipes and temp files are handled by samtools
     pipeline = (
         f"{shlex.quote(bwa_executable)} mem -Y -M "
         f"-R {shlex.quote(read_group)} "
@@ -132,14 +127,12 @@ def map_reads_to_bam(
         if not required_path.is_file():
             raise FileNotFoundErrorAfanc(required_path)
 
-    ## ensure the reference is indexed before mapping
     prepared_reference = prepare_reference(
         ref_fasta=ref_fasta,
         bwa_executable=bwa_executable,
         samtools_executable=samtools_executable,
     )
 
-    ## require all tools up front so the pipeline does not fail deep into the run
     _require_executable(samclip_executable)
 
     output_bam.parent.mkdir(parents=True, exist_ok=True)
@@ -166,7 +159,6 @@ def map_reads_to_bam(
         pipefail=True,
     ).run_comm_quiet(0)
 
-    ## index the final BAM once duplicate removal has completed successfully
     command([samtools_executable, "index", str(output_bam)], "MAP").run_comm_quiet(0)
 
     return {

@@ -51,21 +51,19 @@ class command():
         self.env = env
         self.timeout = timeout
 
-        ## keeps the old shell=True behaviour for string commands while allowing
-        ## argv-style commands to bypass the shell when a list is provided
+        ## infer shell use from the command type
         if shell is None:
             self.shell = not isinstance(command, (list, tuple))
         else:
             self.shell = shell
 
-        ## pipefail requires a shell and is only reliably available under bash
+        ## pipefail requires bash
         if self.pipefail:
             self.shell = True
             if self.shell_executable == None:
                 self.shell_executable = "/bin/bash"
 
         self.command_display = self._format_command_for_display(command)
-        # vprint(self.subprocessID, f"COMMAND={self.command}", "prYellow")
 
     def run(self, timeout = -1):
 
@@ -105,7 +103,7 @@ class command():
             if kill_tree:
                 pids.extend(self.get_process_children(p.pid))
             for pid in pids:
-                ## this is to avoid OSError: no such process in case process dies before getting to this line
+                ## process may exit before cleanup
                 try:
                     kill(pid, SIGKILL)
                 except OSError:

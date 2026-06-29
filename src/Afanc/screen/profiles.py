@@ -43,8 +43,7 @@ def resolve_profile_for_event(event: Mapping[str, Any], manifest: Mapping[str, A
     profiles = manifest.get("profiles") or {}
     candidate_taxids = _event_candidate_taxids(event)
 
-    ## Prefer exact taxID matches. This protects species-level models from
-    ## being pulled in by broad aliases when the taxonomy is already stable.
+    ## prefer exact taxid matches to aliases
     for candidate_taxid in candidate_taxids:
         profile = profiles.get(candidate_taxid)
         if profile and profile.get("enabled", True):
@@ -154,7 +153,7 @@ def _safe_contains_match(candidate: str, profile_name: str) -> bool:
     if not candidate or not profile_name:
         return False
 
-    ## Avoid short aliases like "TB" or "Pf" creating broad accidental hits.
+    ## ignore short aliases during substring matching
     if len(profile_name) < 7:
         return False
 

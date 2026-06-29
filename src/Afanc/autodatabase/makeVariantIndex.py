@@ -21,8 +21,7 @@ def makeVariantIndex(args, base_nodes=None):
 
     """
 
-    ## retained for compatibility with older callers that passed the kraken2
-    ## inspect tree into this function.
+    ## compatibility argument
     _ = base_nodes
 
     names_dmp = path.join(args.autoDB_WDir, "ncbi_taxonomy", "names.dmp")

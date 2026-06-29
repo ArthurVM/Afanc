@@ -18,12 +18,10 @@ def makeFinalReport(args, reports, snp_profile=None, lineage_profile=None):
     jsondict = defaultdict(dict)
     datadict = jsondict["results"] = {}
 
-    ## Final report is taxID-indexed. Bulky legacy/audit records are written
-    ## as sub-reports in reportsDir below.
+    ## index detection events by taxid
     datadict["Detection_events"] = {}
     clustering_results = []
 
-    ## collect arguments
     jsondict["arguments"] = {
         "database" : str(args.database),
         "fastqs" : [str(fastq) for fastq in args.fastq],
@@ -51,33 +49,26 @@ def makeFinalReport(args, reports, snp_profile=None, lineage_profile=None):
         "output_prefix" : args.output_prefix,
     }
 
-    ## collect versions
     jsondict["versions"] = {
         "screen" : getVersionsScreen()
     }
 
-    ## collect mapping json reports
     mapping_reports_box = [g for g in listdir(args.reportsDir) if g.endswith("mapstats.json")]
     final_report = path.abspath(f"./{args.output_prefix}.json")
 
-    ## read general report
     with open(f"{args.reportsDir}/{args.output_prefix}.k2.json", 'r') as k2fin:
         k2data = json.load(k2fin)
 
         for event in k2data["Detection_events"]:
 
-            ## initialise warnings
             event["warnings"] = event.get("warnings", [])
             if "lineage_profile_validation" in event and not event["lineage_profile_validation"].get("valid", False):
                 event["warnings"].append({"lineage_profile_validation": event["lineage_profile_validation"].get("errors", [])})
 
-            ## handle instances where an assembly cannot be found or no_map mode was used
             if "closest_variant" in event:
                 closest_variant_flag = True
 
-                ## Below-species hits store the selected mapping assembly on
-                ## closest_variant, while variant-profile overrides may store
-                ## the species assembly at the event level.
+                ## profile overrides store the assembly at event level
                 if "lineage_profile" in event and "assembly" in event:
                     assembly = event["assembly"]
                 elif "assembly" in event["closest_variant"]:
@@ -92,18 +83,14 @@ def makeFinalReport(args, reports, snp_profile=None, lineage_profile=None):
                 closest_variant_flag = False
                 assembly = event["assembly"]
 
-            ## block to deal with instances where there is no assembly
-            ## this is to ensure that a final json is constructed when no_map mode is used
             else:
                 closest_variant_flag = False
                 assembly = None
 
-            ## block dealing with hits which have an accompanying assembly which reads were mapped to
             if assembly is not None:
                 assembly_prefix = _assembly_to_accession(assembly)
 
-                ## Find mapping report. Prefer the explicit reports dict returned
-                ## by mapping; fall back to legacy filename matching.
+                ## fall back to legacy filename matching
                 report_path = reports.get(assembly_prefix) if reports else None
                 if report_path is None:
                     report_matches = [
@@ -126,33 +113,26 @@ def makeFinalReport(args, reports, snp_profile=None, lineage_profile=None):
                     )
                     continue
 
-                ## read mapping report
                 with open(report_path, 'r') as mapping_report_handle:
                     mapping_data = json.load(mapping_report_handle)
 
-                    ## check the that the no_unique_map warning doesnt exist
                     if "no_unique_map" not in mapping_data["warnings"]:
 
-                        ## add fields to json dict
-                        ## if there is a likely variant, add to that subdict
                         if closest_variant_flag:
                             event["closest_variant"]["mean_DOC"] = mapping_data["map_data"]["mean_DOC"]
                             event["closest_variant"]["median_DOC"] = mapping_data["map_data"]["median_DOC"]
                             event["closest_variant"]["reference_cov"] = mapping_data["map_data"]["proportion_cov"]
                             event["closest_variant"]["gini"] = mapping_data["map_data"]["gini"]
 
-                        ## otherwise add to the base dict
                         else:
                             event["mean_DOC"] = mapping_data["map_data"]["mean_DOC"]
                             event["median_DOC"] = mapping_data["map_data"]["median_DOC"]
                             event["reference_cov"] = mapping_data["map_data"]["proportion_cov"]
                             event["gini"] = mapping_data["map_data"]["gini"]
 
-                    ## if it does, append it to the final report warnings
                     else:
                         event["warnings"].append(mapping_data["warnings"])
 
-            ## block dealing with hits which do not have an accompanying assembly
             else:
                 event['warnings'].append(f"No assembly could be found for hit on {event['name']}.")
 

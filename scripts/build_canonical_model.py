@@ -392,7 +392,7 @@ def build_model(args: argparse.Namespace) -> dict:
         allele_id_format=getattr(args, "allele_id_format", DEFAULT_ALLELE_ID_FORMAT),
     )
 
-    ## collect the direct marker counts before expanding any inherited hierarchy
+    ## count direct markers before inheritance
     direct_marker_counts = Counter(row["lineage_id"] for row in rows)
     lineage_ids = sorted(direct_marker_counts, key=natural_sort_key)
     lineage_set = set(lineage_ids)
@@ -432,8 +432,7 @@ def build_model(args: argparse.Namespace) -> dict:
         )
         direct_locus_ids_by_lineage[row["lineage_id"]].append(locus_id)
 
-    ## materialise the hierarchy within the model so later code does not need to
-    ## infer lineage relationships from string prefixes
+    ## store the hierarchy explicitly
     lineage_records = []
     hierarchy_edges = []
     root_lineages = []

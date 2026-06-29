@@ -74,7 +74,7 @@ def validate_vcf_qc(
             f"VCF caller validation failed for {vcf_path}: expected {expected_caller!r}, got {detected_caller!r}."
         )
 
-    ## ensure the basic depth/allele fields required for parsing are present
+    ## require depth and allele fields
     if detected_caller == "freebayes":
         required_formats = {"GT", "DP"}
         if not ({"AD"} <= format_fields or {"AO", "RO"} <= format_fields):
@@ -94,7 +94,7 @@ def validate_vcf_qc(
             f"VCF QC validation failed for {vcf_path}: missing required FORMAT fields {sorted(missing_formats)}."
         )
 
-    ## check that the expected bcftools filter stuff is still present in the header
+    ## validate recorded bcftools filters
     if require_filtered_vcf:
         if "bcftools_viewcommand" not in header_lower or "bcftools_normcommand" not in header_lower:
             raise ValueError(
@@ -127,7 +127,6 @@ def validate_vcf_qc(
 
 
 def load_lineage_model(model: ModelInput) -> Dict[str, Any]:
-    ## allow either a loaded model dictionary or a path to a json model
     if isinstance(model, Mapping):
         return dict(model)
 
@@ -141,7 +140,6 @@ def write_model_targets_bed(model: ModelInput, output_bed: Union[str, Path]) -> 
     output_path = Path(output_bed)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ## deduplicate intervals before writing the targeting bed
     with output_path.open("w") as handle:
         for locus in _iter_unique_bed_loci(model_dict):
             handle.write(
@@ -174,8 +172,7 @@ def parse_vcf_for_classification(
     with pysam.VariantFile(str(vcf_path)) as vcf:
         resolved_sample = _resolve_sample_name(vcf, sample_name)
 
-        ## capture only loci which appear in the model
-        ## everything else missing
+        ## unmatched model loci remain missing
         for record in vcf:
             if not record.alts:
                 continue
@@ -420,8 +417,6 @@ def classify_snp_json_against_model(
         sample_name=sample_name,
     )
     
-    # print(f"""mode={mode} ; kappa_weighting={kappa_weighting} ; min_kappa_weight={min_kappa_weight} ; full_weight_kappa={full_weight_kappa}""")
-    
     result = classify_evidence_against_model(
         parsed_evidence=parsed_evidence,
         model=prepared_model,
@@ -468,8 +463,7 @@ def _build_model_locus_lookup(model: Mapping[str, Any]) -> Dict[str, Dict[Tuple[
 def _initialise_evidence(model: Mapping[str, Any], missing_reason: str) -> Dict[str, VariantEvidence]:
     evidence = {}
     for locus in model["loci"]:
-        ## initialise every model locus as absent from the current input
-        ## overwrite only when a matching record is observed
+        ## mark loci missing until matched
         evidence[locus["locus_id"]] = VariantEvidence(
             locus_id=locus["locus_id"],
             chrom=locus["chrom"],
@@ -549,7 +543,7 @@ def _record_to_evidence(
     if require_pass and filter_keys and filter_keys != ("PASS",):
         excluded_reasons.append("filter_not_pass")
 
-    ## classifier expects depth aware evidence so loci missing DP/AD are treated as observed but unusable
+    ## DP and allele depth are required for usable evidence
     usable = not excluded_reasons and depth is not None and alt_depth is not None
 
     return VariantEvidence(
@@ -712,8 +706,7 @@ def _extract_allele_depths(sample_data: Any, alt_index: int) -> Tuple[Optional[i
     if sample_data is None:
         return None, None
 
-    ## prefer AD where available
-    ## accept freebayes style RO/AO fields too
+    ## fall back to freebayes RO/AO
     ad = sample_data.get("AD")
     if ad is None or len(ad) <= alt_index + 1:
         ro = sample_data.get("RO")
@@ -798,8 +791,7 @@ def _require_any_header_substring(
 
 
 def _lineage_scope_field(lineage_scope: str) -> str:
-    ## lineage membership is driven from the model hierarchy rather than inferred from lineage name prefixes at classification time
-    ## TODO: this has caused issues in the past
+    ## lineage names do not define membership
     if lineage_scope == "direct":
         return "direct_locus_ids"
     if lineage_scope == "inherited":
@@ -1465,7 +1457,6 @@ def _locus_log_likelihood(
         raise ValueError(f"Locus {evidence.locus_id} is missing depth information required for classification.")
 
     if mode == "empirical_bayes":
-        ## use the sparse target/background frequencies stored directly on the locus
         frequencies = locus["empirical_bayes"]
         p = (
             float(frequencies["target_frequency"])
@@ -1483,7 +1474,6 @@ def _locus_log_likelihood(
         )
 
     if mode == "full_bayes":
-        ## use prefit BB parameters stored in the model
         alpha, beta = _resolve_full_bayes_beta_params(locus, model, is_active_for_lineage)
         log_likelihood = _log_beta_binomial_pmf(evidence.alt_depth, evidence.depth, alpha, beta)
         return log_likelihood * _kappa_weight_for_locus(

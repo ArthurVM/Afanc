@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 """
-Command line interface for Afanc metagenomics disambiguator.
+Command line interface for Afanc taxonomic classifier.
 """
 import sys
 

@@ -19,14 +19,11 @@ def redistribute_lca_hierarchical(
     allow_evidence_fallback=True,
 ):
     """Redistribute non-scoring direct reads by LCA routing."""
-    ## reads the mvi bits once here
-    ## everything downstream just needs simple lookups
     mvi_path = Path(mvi) if not isinstance(mvi, dict) else None
     similarity_lookup = read_mvi_mash_distances(mvi)
     variant_index = read_mvi_variant_index(mvi)
 
-    ## keep the original k2 counts around
-    ## scoring and weighting should still use what kraken2 actually saw
+    ## preserve raw kraken2 counts for scoring
     root = root_node.root()
     root.snapshot_counts()
     root.redistribution_unassigned_reads = 0
@@ -41,9 +38,6 @@ def redistribute_lca_hierarchical(
     if not family_roots:
         family_roots = [root_node]
 
-    ## audit is pretty verbose
-    ## annoying in the json but useful when redistribution does something weird
-    ## TODO probably split this into a compact summary and full debug report later
     audit = {
         "algorithm": "lca_hierarchical",
         "parameters": {
@@ -70,8 +64,6 @@ def redistribute_lca_hierarchical(
     }
 
     for family in family_roots:
-        ## first decide which nodes have enough evidence to be real targets
-        ## everything else with direct reads becomes a possible donor
         scoring_nodes = score_lca_nodes(
             family=family,
             scoring_ranks=scoring_ranks,
@@ -109,8 +101,7 @@ def redistribute_lca_hierarchical(
         )
 
         for donor in donors:
-            ## direct reads on donor nodes are treated as ambiguous support
-            ## remove them first then try to route them down to better supported taxa
+            ## remove ambiguous direct reads before redistribution
             donor_reads = int(round(donor.taxon_reads))
             if donor_reads <= 0:
                 continue
@@ -136,9 +127,6 @@ def redistribute_lca_hierarchical(
             audit["total_deducted"] += donor_reads
 
             if ancestor is None:
-                ## this is the nowhere sensible to put it case
-                ## do not dump reads onto the family by default
-                ## that can make the family look better supported than it is
                 if no_recipient_policy == "keep_at_family":
                     family.taxon_reads += donor_reads
                     audit["total_added"] += donor_reads
@@ -157,8 +145,6 @@ def redistribute_lca_hierarchical(
                 family_record["donors"].append(donor_record)
                 continue
 
-            ## walk from the nearest useful ancestor through supported branches
-            ## until the reads land on scoring nodes
             route_result = trickle_down(
                 donor=donor,
                 current=ancestor,
@@ -178,8 +164,7 @@ def redistribute_lca_hierarchical(
             root.redistribution_unassigned_reads += route_result["unassigned"]
             family_record["donors"].append(donor_record)
 
-        ## rebuild clade counts after taxon level edits
-        ## otherwise reporting can mix original and redistributed values
+        ## refresh clade totals after redistribution
         root.recalculate_clade_counts(total_reads=total_reads)
         family_record["total_scoring_nodes"] = len(family_record["scoring_nodes"])
         family_record["total_donors"] = len(family_record["donors"])
@@ -197,15 +182,13 @@ def collect_direct_donors(family, scoring_set, min_reads):
         if node.raw_taxon_reads <= 0 or node.raw_taxon_reads < min_reads:
             continue
         donors.append(node)
-    ## deepest first so messy child bins are cleared before their parent
+    ## process child donors before parents
     donors.sort(key=lambda node: node.level_int, reverse=True)
     return donors
 
 
 def redistribution_ancestor(donor, family, scoring_set, descendant_cache):
     """Find the nearest ancestor which has scoring signal in its subtree."""
-    ## climb until the subtree contains at least one accepted recipient
-    ## if we hit the family first the donor is genuinely unresolved
     node = donor
     while node is not None:
         if node is not donor and node.parent is None:
@@ -220,8 +203,6 @@ def redistribution_ancestor(donor, family, scoring_set, descendant_cache):
 
 def scoring_descendants(node, scoring_set, descendant_cache):
     """Return scoring nodes contained inside ``node``."""
-    ## this gets called a lot during routing
-    ## cache by object identity rather than walking the same subtree repeatedly
     key = id(node)
     if key not in descendant_cache:
         descendant_cache[key] = [child for child in node.traverse() if child in scoring_set]
@@ -254,12 +235,9 @@ def trickle_down(
     if reads <= 0:
         return {"added": 0, "unassigned": 0}
 
-    ## at each internal node only children with scoring descendants can receive reads
-    ## this stops reads leaking into unsupported side branches
     child_branches = scoring_child_branches(current, scoring_set, descendant_cache)
     if not child_branches:
         if current in scoring_set:
-            ## reached a supported terminal target
             current.taxon_reads += reads
             routes.append(
                 {
@@ -272,8 +250,6 @@ def trickle_down(
             )
             return {"added": reads, "unassigned": 0}
 
-        ## should be uncommon
-        ## can happen if the route dries up before a scoring node is reached
         routes.append(
             {
                 "target": current.name,
@@ -285,8 +261,6 @@ def trickle_down(
         )
         return {"added": 0, "unassigned": reads}
 
-    ## weight the next branches by mash similarity and read evidence
-    ## then split donor reads as integers
     weighted_branches = weight_branches(
         donor=donor,
         branches=child_branches,
@@ -298,8 +272,7 @@ def trickle_down(
     )
     allocations = integer_allocations(reads, weighted_branches)
     if not allocations:
-        ## TODO this is where a future ani only or rank aware fallback could go
-        ## for now unassigned is safer than forcing a dubious route
+        ## leave reads unassigned when no branch has a positive weight
         routes.append(
             {
                 "target": current.name,
@@ -314,8 +287,6 @@ def trickle_down(
     added = 0
     unassigned = 0
     for branch, metric, weight, allocated_reads in allocations:
-        ## keep the route tree explicit in the audit
-        ## easier to debug than only reporting the final recipient
         route_record = {
             "from": current.name,
             "from_taxid": current.ncbi_taxID,
@@ -366,14 +337,11 @@ def weight_branches(
         evidence = max(float(getattr(branch, "raw_clade_reads", branch.clade_reads)), pseudocount)
 
         if metric is None:
-            ## if mash cannot tell us anything we can fall back to read evidence
-            ## not ideal but better than dropping everything when the mvi is incomplete
+            ## use read evidence when mash distances are unavailable
             if not allow_evidence_fallback:
                 continue
             weight = evidence ** evidence_power
         else:
-            ## similarity does the taxonomic steering
-            ## evidence stops tiny noisy branches winning just because they are close
             weight = (metric["similarity"] ** mash_power) * (evidence ** evidence_power)
 
         if weight > 0:
@@ -383,8 +351,7 @@ def weight_branches(
 
 
 def integer_allocations(reads, weighted_recipients):
-    ## convert fractional expected reads into actual integer reads
-    ## remainders go to the largest fractional parts so the total is conserved
+    ## largest remainder allocation
     if reads <= 0 or not weighted_recipients:
         return []
 
