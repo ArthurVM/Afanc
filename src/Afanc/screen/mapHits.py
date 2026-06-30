@@ -12,6 +12,34 @@ from .maths.mappingMetrics import gini, genomeSize, breadthofCoverage, meanDOC, 
 
 
 FASTA_EXTENSIONS = (".fna.gz", ".fna", ".fa.gz", ".fa", ".fasta.gz", ".fasta")
+LOW_GENOME_COVERAGE_THRESHOLD = 0.05
+VERY_LOW_GENOME_COVERAGE_THRESHOLD = 0.01
+
+
+def make_low_genome_coverage_warning(coverage_fraction, assembly):
+    """Return a structured spurious-result warning for low breadth of coverage."""
+    if coverage_fraction >= LOW_GENOME_COVERAGE_THRESHOLD:
+        return None
+
+    severity = (
+        "very_low"
+        if coverage_fraction < VERY_LOW_GENOME_COVERAGE_THRESHOLD
+        else "low"
+    )
+    coverage_percentage = coverage_fraction * 100
+
+    return {
+        "code": "low_genome_coverage",
+        "flag": True,
+        "severity": severity,
+        "genome_coverage_fraction": coverage_fraction,
+        "warning_threshold": LOW_GENOME_COVERAGE_THRESHOLD,
+        "possible_spurious_result": True,
+        "message": (
+            f"Only {coverage_percentage:.2f}% of reference {assembly} is covered. "
+            "The reported species could be a spurious result."
+        ),
+    }
 
 
 def make_accessions_dict(args):
@@ -164,10 +192,9 @@ def _write_mapping_stats(args, accession, assembly, sorted_bam, combined_referen
         datadict["map_data"]["proportion_cov"] = boc
         datadict["map_data"]["gini"] = gini_co
 
-        if boc < 0.05:
-            datadict["warnings"]["FP-warning"] = f"Coverage across {assembly} low (<5%). Result could be false-positive."
-        if boc < 0.01:
-            datadict["warnings"]["FP-warning"] = f"Coverage across {assembly} very low (<1%). Result likely to be false-positive."
+        low_coverage_warning = make_low_genome_coverage_warning(boc, assembly)
+        if low_coverage_warning is not None:
+            datadict["warnings"]["low_genome_coverage"] = low_coverage_warning
 
     report_json_out = f"{args.reportsDir}/{accession}.mapstats.json"
     with open(report_json_out, 'w') as fout:

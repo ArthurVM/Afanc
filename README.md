@@ -20,6 +20,98 @@ Current version: `0.20`
 
 ![Afanc graphical abstract: curate, resolve, classify](resources/graphical_abstract.png)
 
+## Quick Start
+### Toy Dataset
+
+The quickest way to install Afanc with all command-line dependencies and run
+the bundled end-to-end toy dataset is with Conda:
+
+```bash
+git clone https://github.com/ArthurVM/Afanc.git
+cd Afanc
+
+conda env create -f environment.yml
+conda activate afanc
+python -m pip install .
+
+afanc --version
+bash examples/toy_dataset/run_demo.sh
+```
+
+The demo builds a database from a synthetic 24 kbp assembly, then runs the
+complete `screen` workflow against 250 paired-end read pairs. It requires no
+taxonomy or sequence downloads. The primary result is written to:
+
+```text
+afanc-toy-run/toy_screen/toy_screen.json
+```
+
+The expected call is `Toybacter alpha` (taxID `1000001`) with 250 assigned
+reads. To write the demonstration somewhere else, provide a new output path:
+
+```bash
+bash examples/toy_dataset/run_demo.sh /tmp/afanc-toy-run
+```
+
+See the [toy dataset documentation](examples/toy_dataset/README.md) for the
+individual `autodatabase` and `screen` commands. More installation options are
+described below.
+
+## Slightly Less Quick Start
+### Screen Public Mpox Reads
+
+This example uses the published
+[Afanc database from Zenodo](https://zenodo.org/records/20708345) and the
+paired-end mpox run `ERR9769172`. It assumes Afanc has already been installed
+using the Quick Start above. The database archive is approximately 2.47 GB, so
+allow additional time and disk space for downloading and extraction.
+
+Install the SRA Toolkit, which provides `fastq-dump`, then create a separate
+working directory:
+
+```bash
+conda activate afanc
+conda install -c conda-forge -c bioconda sra-tools
+
+mkdir afanc-mpox-demo
+cd afanc-mpox-demo
+```
+
+Download, verify, and extract the prebuilt Afanc database:
+
+```bash
+curl -L --fail \
+  "https://zenodo.org/records/20708345/files/Afanc_DB_1.2.tar.gz?download=1" \
+  -o Afanc_DB_1.2.tar.gz
+
+echo "2dd67d93ae9a6f3445fd401fbb5018a2  Afanc_DB_1.2.tar.gz" | md5sum --check -
+tar -xzf Afanc_DB_1.2.tar.gz
+```
+
+Download the paired FASTQs from the Sequence Read Archive:
+
+```bash
+fastq-dump --split-files --gzip ERR9769172
+```
+
+This produces `ERR9769172_1.fastq.gz` and `ERR9769172_2.fastq.gz`. Screen
+them against the extracted database:
+
+```bash
+afanc screen \
+  Afanc_Compound_1.2 \
+  ERR9769172_1.fastq.gz \
+  ERR9769172_2.fastq.gz \
+  --output_prefix mpox_ERR9769172 \
+  --threads 4
+```
+
+The main report is written to:
+
+```text
+mpox_ERR9769172/mpox_ERR9769172.json
+```
+
 ## Installation
 
 The recommended installation route is the conda recipe. Afanc depends on a
@@ -187,7 +279,21 @@ The current workflow is:
     7) Generate per-hit mapping reports and BAM indexes
     8) Call SNPs from the mapped reads with FreeBayes or bcftools and write classifier-ready SNP JSON
     9) Run Bayesian lineage classification when a matching profile model is available
-    10) Write the final taxid-indexed JSON report, including taxonomic assignment, mapping statistics, SNP profiles, lineage profiles, and subreport files
+    10) Write the schema-v2 JSON report with one compact record per detection, plus detailed artifact files for taxonomic, variant-calling, and lineage-classification evidence
+
+The final report separates biological results from run metadata:
+
+- `results.detections` is a list of detected taxa. Each record contains
+  `taxon`, `read_support`, `mapping`, `variant_calling`, one consolidated
+  `lineage` object, and structured `warnings`.
+- `run.inputs`, `run.settings`, and `run.software_versions` describe how the
+  analysis was performed.
+- `run.artifacts` links to detailed, path-rich intermediate reports. These
+  details are kept out of the main detection summaries to make the primary
+  JSON easier to read.
+
+Every final report includes `"schema_version": "2.0"`. Stages which did not
+run use an explicit `status` and `reason` rather than an empty object.
 
 ### classify
 This module performs lineage classification from existing variant evidence
@@ -290,6 +396,13 @@ This will create a directory structure, which constitutes the database for scree
   afanc screen my_assemblies_DB my_reads_1.fq.gz my_reads_2.fq.gz -o my_analysis
 ```
 Results will be deposited in a directory structure within `my_analysis`.
+
+### Reviewer Toy Dataset
+
+For a small, deterministic, offline example that runs `autodatabase` followed
+by `screen`, see [`examples/toy_dataset`](examples/toy_dataset/README.md).
+The included script builds a database from a 24 kbp synthetic assembly and
+screens 250 synthetic paired-end read pairs.
 
 ### Optional Step 4: Classify Existing Variant Calls
 If variant calls have already been generated against a supported profile

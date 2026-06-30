@@ -1,7 +1,7 @@
 import json
 
 from Afanc.screen.profiles import load_profiles_manifest, resolve_profile_for_event, validate_profile_reference
-from Afanc.screen.report.final_report import _index_detection_event_by_taxid, makeFinalReport
+from Afanc.screen.report.final_report import _build_detection_summary, makeFinalReport
 from Afanc.screen.variant_profiler.bayesian_profile import run_lineage_classification
 
 
@@ -185,50 +185,75 @@ def test_load_profiles_manifest_finds_sibling_profiles_dir(tmp_path):
     assert manifest == {"profiles": {}}
 
 
-def test_detection_events_are_indexed_by_species_call_with_nested_variant_profiles():
+def test_detection_summary_uses_closest_variant_analysis_without_duplicate_profiles():
     event = {
         "name": "Mycobacterium tuberculosis",
         "taxon_id": 1773,
+        "reads": 100,
+        "percentage": 95.0,
         "accession": "ASM19595v2",
         "assembly": "H37Rv.fasta",
+        "warnings": [],
         "closest_variant": {
             "name": "Mycobacterium tuberculosis variant bovis BCG",
             "taxon_id": 33892,
             "accession": "ASM23472v1",
             "assembly": "33892_GCA_000234725.1_ASM23472v1_genomic.fna",
+            "mean_DOC": 20,
+            "median_DOC": 19,
+            "reference_cov": 0.98,
+            "gini": 0.1,
         },
     }
     snp_profile = {
         "H37Rv": {"snp_count": 2},
-        "33892_GCA_000234725.1_ASM23472v1": {"snp_count": 3},
+        "33892_GCA_000234725.1_ASM23472v1": {
+            "caller": "freebayes",
+            "snp_count": 3,
+            "missing_count": 4,
+            "allele_id_format": "{chrom}.{start}.{ref}.{alt}",
+        },
     }
     lineage_profile = {
-        "H37Rv": {"best_lineage": "lineage4"},
+        "33892_GCA_000234725.1_ASM23472v1": {
+            "status": "classified",
+            "best_lineage": "BCG",
+            "best_posterior": 0.99,
+            "call_status": "called",
+            "classifier": "hierarchical_ceb",
+            "model_family": "canonical",
+        },
     }
 
-    by_taxid = {}
-    _index_detection_event_by_taxid(
-        by_taxid,
+    detection = _build_detection_summary(
         event,
         snp_profile=snp_profile,
         lineage_profile=lineage_profile,
     )
 
-    assert sorted(by_taxid) == ["1773"]
-    assert by_taxid["1773"]["name"] == "Mycobacterium tuberculosis"
-    assert by_taxid["1773"]["taxonomic_assignment"]["taxon_id"] == 1773
-    assert by_taxid["1773"]["taxonomic_assignment"]["closest_variant"]["taxon_id"] == 33892
-    assert by_taxid["1773"]["snp_profile"]["H37Rv"]["snp_count"] == 2
-    assert by_taxid["1773"]["lineage_profile"]["H37Rv"]["best_lineage"] == "lineage4"
-    assert by_taxid["1773"]["snp_profile"]["33892_GCA_000234725.1_ASM23472v1"]["snp_count"] == 3
+    assert detection["taxon"] == {
+        "taxon_id": "1773",
+        "name": "Mycobacterium tuberculosis",
+        "closest_variant": {
+            "taxon_id": "33892",
+            "name": "Mycobacterium tuberculosis variant bovis BCG",
+        },
+    }
+    assert detection["mapping"]["mean_depth"] == 20
+    assert detection["variant_calling"]["snp_count"] == 3
+    assert detection["lineage"]["call"]["name"] == "BCG"
+    assert "lineage_profile" not in detection
 
 
 def test_mpox_parent_and_clade_are_reported_as_one_species_level_event():
     event = {
         "name": "Orthopoxvirus monkeypox",
         "taxon_id": 3431483,
+        "reads": 1000,
+        "percentage": 99.0,
         "accession": "NA",
         "assembly": "NC_063383.fasta",
+        "warnings": [],
         "closest_variant": {
             "name": "Monkeypox virus cladeIIb",
             "taxon_id": 3706793,
@@ -236,26 +261,62 @@ def test_mpox_parent_and_clade_are_reported_as_one_species_level_event():
             "assembly": "NC_063383.fasta",
         },
     }
-    snp_profile = {"NC_063383": {"snp_count": 66}}
-    lineage_profile = {"NC_063383": {"best_lineage": "B.1.5"}}
+    snp_profile = {
+        "NC_063383": {
+            "caller": "freebayes",
+            "snp_count": 66,
+            "missing_count": 2,
+        }
+    }
+    lineage_profile = {
+        "NC_063383": {
+            "status": "classified",
+            "best_lineage": "B.1.5",
+            "best_posterior": 0.97,
+            "call_status": "called",
+        }
+    }
 
-    by_taxid = {}
-    _index_detection_event_by_taxid(
-        by_taxid,
+    detection = _build_detection_summary(
         event,
         snp_profile=snp_profile,
         lineage_profile=lineage_profile,
     )
 
-    assert sorted(by_taxid) == ["3431483"]
-    assert by_taxid["3431483"]["name"] == "Orthopoxvirus monkeypox"
-    assert by_taxid["3431483"]["taxonomic_assignment"]["taxon_id"] == 3431483
-    assert by_taxid["3431483"]["taxonomic_assignment"]["closest_variant"]["taxon_id"] == 3706793
-    assert by_taxid["3431483"]["snp_profile"]["NC_063383"]["snp_count"] == 66
-    assert by_taxid["3431483"]["lineage_profile"]["NC_063383"]["best_lineage"] == "B.1.5"
+    assert detection["taxon"]["taxon_id"] == "3431483"
+    assert detection["taxon"]["closest_variant"]["taxon_id"] == "3706793"
+    assert detection["variant_calling"]["snp_count"] == 66
+    assert detection["lineage"]["call"]["name"] == "B.1.5"
 
 
-def test_final_report_is_taxid_indexed_and_writes_subreports(tmp_path, monkeypatch):
+def test_no_map_detection_uses_explicit_stage_statuses():
+    detection = _build_detection_summary(
+        {
+            "name": "Toy species",
+            "taxon_id": 123,
+            "reads": 50,
+            "percentage": 100.0,
+            "warnings": [],
+        },
+        no_map=True,
+    )
+
+    assert detection["mapping"] == {
+        "status": "not_run",
+        "reason": "disabled_by_no_map",
+    }
+    assert detection["variant_calling"] == {
+        "status": "not_run",
+        "reason": "mapping_disabled",
+    }
+    assert detection["lineage"] == {
+        "status": "not_run",
+        "reason": "mapping_disabled",
+    }
+    assert detection["warnings"] == []
+
+
+def test_final_report_uses_schema_v2_and_writes_detail_artifacts(tmp_path, monkeypatch):
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
     (reports_dir / "sample.k2.json").write_text(
@@ -275,11 +336,21 @@ def test_final_report_is_taxid_indexed_and_writes_subreports(tmp_path, monkeypat
     (reports_dir / "H37Rv.mapstats.json").write_text(
         json.dumps(
             {
-                "warnings": [],
+                "warnings": {
+                    "low_genome_coverage": {
+                        "code": "low_genome_coverage",
+                        "flag": True,
+                        "severity": "very_low",
+                        "genome_coverage_fraction": 0.009,
+                        "warning_threshold": 0.05,
+                        "possible_spurious_result": True,
+                        "message": "The reported species could be a spurious result.",
+                    }
+                },
                 "map_data": {
                     "mean_DOC": 12,
                     "median_DOC": 11,
-                    "proportion_cov": 0.9,
+                    "proportion_cov": 0.009,
                     "gini": 0.1,
                 },
             }
@@ -311,26 +382,68 @@ def test_final_report_is_taxid_indexed_and_writes_subreports(tmp_path, monkeypat
         lineage_disable_incomplete_descent = False
         output_prefix = "sample"
         reportsDir = str(reports_dir)
+        no_map = False
 
     monkeypatch.chdir(tmp_path)
     final_report = makeFinalReport(
         Args,
         reports={"H37Rv": str(reports_dir / "H37Rv.mapstats.json")},
-        snp_profile={"H37Rv": {"snp_count": 1}},
-        lineage_profile={"H37Rv": {"best_lineage": "lineage4"}},
+        snp_profile={
+            "H37Rv": {
+                "caller": "freebayes",
+                "snp_count": 1,
+                "missing_count": 2,
+                "allele_id_format": "{chrom}.{start}.{ref}.{alt}",
+            }
+        },
+        lineage_profile={
+            "H37Rv": {
+                "status": "classified",
+                "taxon_id": 1773,
+                "name": "Mycobacterium tuberculosis",
+                "best_lineage": "lineage4",
+                "best_posterior": 0.99,
+                "call_status": "called",
+                "classifier": "hierarchical_ceb",
+                "model_family": "canonical",
+            }
+        },
     )
 
     data = json.loads((tmp_path / "sample.json").read_text())
-    detection_events = data["results"]["Detection_events"]
+    detections = data["results"]["detections"]
 
     assert final_report == str(tmp_path / "sample.json")
-    assert sorted(detection_events) == ["1773"]
-    assert detection_events["1773"]["name"] == "Mycobacterium tuberculosis"
-    assert detection_events["1773"]["taxonomic_assignment"]["mean_DOC"] == 12
-    assert detection_events["1773"]["snp_profile"]["H37Rv"]["snp_count"] == 1
-    assert detection_events["1773"]["lineage_profile"]["H37Rv"]["best_lineage"] == "lineage4"
-    assert "Clustering_results" not in detection_events
-    assert "SNP_profile" not in detection_events
-    assert (reports_dir / "sample.clustering_results.json").exists()
-    assert (reports_dir / "sample.snp_profile.json").exists()
-    assert (reports_dir / "sample.lineage_profile.json").exists()
+    assert data["schema_version"] == "2.0"
+    assert len(detections) == 1
+    detection = detections[0]
+    assert detection["taxon"] == {
+        "taxon_id": "1773",
+        "name": "Mycobacterium tuberculosis",
+    }
+    assert detection["mapping"]["mean_depth"] == 12
+    assert detection["mapping"]["genome_coverage_fraction"] == 0.009
+    assert detection["warnings"] == [
+        {
+            "code": "low_genome_coverage",
+            "flag": True,
+            "severity": "very_low",
+            "genome_coverage_fraction": 0.009,
+            "warning_threshold": 0.05,
+            "possible_spurious_result": True,
+            "message": "The reported species could be a spurious result.",
+        }
+    ]
+    assert detection["variant_calling"]["snp_count"] == 1
+    assert detection["lineage"]["call"]["name"] == "lineage4"
+    assert detection["lineage"]["profile"]["taxon_id"] == "1773"
+    assert "lineage_profile" not in detection
+    assert data["run"]["settings"]["screening"]["minimum_reads"] == 10
+    assert set(data["run"]["artifacts"]) == {
+        "detection_details",
+        "variant_calling_details",
+        "lineage_classification_details",
+    }
+    assert (reports_dir / "sample.detections.details.json").exists()
+    assert (reports_dir / "sample.variant_calling.details.json").exists()
+    assert (reports_dir / "sample.lineage_classification.details.json").exists()

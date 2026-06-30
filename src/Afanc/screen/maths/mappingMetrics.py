@@ -54,7 +54,8 @@ def meanDOC(covarray):
 def breadthofCoverage(covarray, genomesize):
     """ calculate the breadth of coverage across a genome
     """
-    return len(covarray)/genomesize
+    covered_positions = sum(1 for row in covarray if len(row) == 3)
+    return covered_positions/genomesize
 
 
 def medianDOC(covarray):

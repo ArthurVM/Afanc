@@ -45,7 +45,7 @@ def genScreenDirStructure(args):
 
     vprint(
         subprocessID,
-        f"Generating directory structure for this Afanc-screen run in working directory {args.runWDir}\n",
+        f"Generating directory structure for this Afanc-screen run in working directory {args.runWDir}",
         "prYellow",
     )
 
@@ -54,7 +54,7 @@ def genScreenDirStructure(args):
     else:
         vprint(
             subprocessID,
-            f"{args.runWDir} exists! Aborting to prevent accidental data loss...\n",
+            f"{args.runWDir} exists! Aborting to prevent accidental data loss...",
             "prRed",
             sys.stderr,
         )

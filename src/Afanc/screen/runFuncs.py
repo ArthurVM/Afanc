@@ -65,7 +65,7 @@ def runFPScreen(args):
     )
 
     fq_string = ' '.join(str(x) for x in args.fastq)
-    print(args.fastq)
+
     runline = f"kraken2 \
      --db {args.k2_database} \
      --minimum-base-quality 15 \

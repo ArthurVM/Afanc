@@ -9,8 +9,12 @@ from Afanc.screen.mapping.bwa import (
     map_reads_to_bam,
     prepare_reference,
 )
-from Afanc.screen.mapHits import build_combined_reference
-from Afanc.screen.mapHits import make_accessions_dict
+from Afanc.screen.maths.mappingMetrics import breadthofCoverage
+from Afanc.screen.mapHits import (
+    build_combined_reference,
+    make_accessions_dict,
+    make_low_genome_coverage_warning,
+)
 
 
 def test_build_read_group():
@@ -176,3 +180,41 @@ def test_make_accessions_dict_includes_fasta_extension(tmp_path):
     assemblies = make_accessions_dict(Args)
 
     assert assemblies["H37Rv"] == "H37Rv.fasta"
+
+
+def test_low_genome_coverage_warning_is_not_created_at_threshold():
+    warning = make_low_genome_coverage_warning(0.05, "reference.fna")
+
+    assert warning is None
+
+
+def test_breadth_of_coverage_ignores_trailing_blank_depth_row():
+    coverage_rows = [
+        ["chr1", "1", "5"],
+        ["chr1", "2", "3"],
+        [""],
+    ]
+
+    assert breadthofCoverage(coverage_rows, genomesize=4) == 0.5
+
+
+@pytest.mark.parametrize(
+    ("coverage_fraction", "expected_severity"),
+    [
+        (0.049, "low"),
+        (0.009, "very_low"),
+    ],
+)
+def test_low_genome_coverage_warning_marks_possible_spurious_result(
+    coverage_fraction,
+    expected_severity,
+):
+    warning = make_low_genome_coverage_warning(coverage_fraction, "reference.fna")
+
+    assert warning["code"] == "low_genome_coverage"
+    assert warning["flag"] is True
+    assert warning["severity"] == expected_severity
+    assert warning["genome_coverage_fraction"] == coverage_fraction
+    assert warning["warning_threshold"] == 0.05
+    assert warning["possible_spurious_result"] is True
+    assert "could be a spurious result" in warning["message"]
