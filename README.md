@@ -16,7 +16,7 @@
 ## Description
 Afanc is a framework for taxonomic deconvolution and probabilistic lineage assignment from pathogen NGS data. It is intended for analyses in which broad read-level classification must be reconciled with high-resolution species, subspecies, clade, or lineage assignment. Afanc combines reference database curation, Kraken2 report deconvolution, competitive read mapping, variant calling, and SNP-based Bayesian classification within a single workflow. It can also apply the same lineage models directly to precomputed VCf evidence when those data were generated against a supported reference profile.
 
-Current version: `0.20`
+Current version: `1.0`
 
 ![Afanc graphical abstract: curate, resolve, classify](resources/graphical_abstract.png)
 
